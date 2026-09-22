@@ -129,7 +129,8 @@ class OfferPipeline:
 
     def _revalidate(self, candidate: Candidate):
         for source in self.sources:
-            if source.source_name in {candidate.deal.source, "partner_feed"}:
+            source_names = getattr(source, "source_names", {source.source_name})
+            if candidate.deal.source in source_names or "partner_feed" in source_names:
                 fresh = source.revalidate(candidate.deal)
                 if fresh is not None:
                     return fresh

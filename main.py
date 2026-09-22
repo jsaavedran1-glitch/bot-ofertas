@@ -11,6 +11,7 @@ from app.models import DealObservation, DiscountEvidence, to_minor
 from app.pipeline import OfferPipeline
 from app.publishers.facebook import FacebookPublishError
 from app.sources import AuthenticatedMercadoLibreSource, PartnerFeedSource
+from app.sources.amazon_rss import AmazonRssSource
 
 
 def build_runtime(settings: Settings, include_sources: bool = True) -> tuple[Database, OfferPipeline]:
@@ -25,6 +26,7 @@ def build_runtime(settings: Settings, include_sources: bool = True) -> tuple[Dat
             )
         )
     if include_sources:
+        sources.append(AmazonRssSource(min_discount_pct=settings.min_discount_pct))
         sources.append(PartnerFeedSource(settings.partner_feed_path))
     return database, OfferPipeline(settings, database, sources)
 
@@ -128,17 +130,27 @@ def main() -> int:
                 # Auto-approve new candidates
                 for candidate_id in ids:
                     database.decide(candidate_id, "approved", actor="system")
-                # Publish from approved backlog (new + previously approved)
-                approved = [c.id for c in database.list_candidates(status="approved")]
+                # Publish from approved backlog interleaving sources (round-robin)
+                from collections import defaultdict
+                by_source: dict[str, list[str]] = defaultdict(list)
+                for c in database.list_candidates(status="approved"):
+                    by_source[c.deal.source].append(c.id)
+                queues = list(by_source.values())
                 published = 0
-                for candidate_id in approved:
-                    if published >= settings.max_posts_per_run:
-                        break
-                    try:
-                        print(f"Publicada {candidate_id}: {pipeline.publish(candidate_id)}")
-                        published += 1
-                    except Exception as exc:
-                        print(f"Falló {candidate_id}: {exc}", file=sys.stderr)
+                while queues and published < settings.max_posts_per_run:
+                    next_queues = []
+                    for q in queues:
+                        if published >= settings.max_posts_per_run:
+                            break
+                        candidate_id = q.pop(0)
+                        try:
+                            print(f"Publicada {candidate_id}: {pipeline.publish(candidate_id)}")
+                            published += 1
+                        except Exception as exc:
+                            print(f"Falló {candidate_id}: {exc}", file=sys.stderr)
+                        if q:
+                            next_queues.append(q)
+                    queues = next_queues
             else:
                 print("Modo review: usa list, approve y publish para revisar cada oferta.")
         elif args.command == "demo":
