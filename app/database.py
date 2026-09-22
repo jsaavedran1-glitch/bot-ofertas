@@ -282,6 +282,13 @@ class Database:
             row = self._dict(conn.execute(sql).fetchone())
         return row["source"] if row else None
 
+    def reel_published_this_hour(self) -> bool:
+        local = utc_now().astimezone(ZoneInfo("America/Bogota"))
+        hour_start = local.replace(minute=0, second=0, microsecond=0).astimezone(timezone.utc).isoformat()
+        sql = self._sql("SELECT 1 FROM publications WHERE platform='facebook_reel' AND published_at>=? LIMIT 1")
+        with self._connection() as conn:
+            return conn.execute(sql, (hour_start,)).fetchone() is not None
+
     def expire_stale(self, max_age_hours: int) -> int:
         cutoff = (utc_now() - timedelta(hours=max_age_hours)).isoformat()
         with self._transaction() as conn:

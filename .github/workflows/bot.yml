@@ -45,6 +45,7 @@ jobs:
       PUBLISH_HOURS: "7-9,12-14,19-22"
       # Activar cuando FB_PAGE_TOKEN tenga el permiso pages_manage_engagement
       LINK_IN_COMMENT: "false"
+      REEL_HOURS: "8,13,20"
       REPOST_COOLDOWN_DAYS: "7"
     steps:
       - uses: actions/checkout@v4
@@ -58,7 +59,7 @@ jobs:
         run: pip install --requirement requirements.txt
 
       - name: Instalar fuente de emojis
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq fonts-noto-color-emoji
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq fonts-noto-color-emoji ffmpeg
 
       - name: Ejecutar pruebas
         run: python -m unittest discover -s tests -v

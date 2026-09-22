@@ -148,6 +148,7 @@ def main() -> int:
                 queues = [q for src, q in by_source.items() if src != last] + (
                     [by_source[last]] if last in by_source else []
                 )
+                as_reel = hour in settings.reel_hours and not database.reel_published_this_hour()
                 published = 0
                 while queues and published < settings.max_posts_per_run:
                     next_queues = []
@@ -156,7 +157,8 @@ def main() -> int:
                             break
                         candidate_id = q.pop(0)
                         try:
-                            print(f"Publicada {candidate_id}: {pipeline.publish(candidate_id)}")
+                            post_id = pipeline.publish(candidate_id, as_reel=as_reel)
+                            print(f"{'Reel publicado' if as_reel else 'Publicada'} {candidate_id}: {post_id}")
                             published += 1
                         except Exception as exc:
                             print(f"Falló {candidate_id}: {exc}", file=sys.stderr)

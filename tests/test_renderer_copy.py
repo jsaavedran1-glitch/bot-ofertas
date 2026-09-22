@@ -91,3 +91,27 @@ class EmojiTests(unittest.TestCase):
         OfferImageRenderer._paste_emoji(canvas, (10, 10), "🔥", 48)
         colors = {canvas.getpixel((x, y)) for x in range(10, 58, 4) for y in range(10, 58, 4)}
         self.assertGreater(len(colors), 3)
+
+
+class ReelRenderTests(unittest.TestCase):
+    def test_reel_is_a_9_second_vertical_mp4(self):
+        import shutil, subprocess
+        if not shutil.which("ffmpeg"):
+            self.skipTest("ffmpeg no instalado")
+        from app.reel_renderer import ReelRenderer
+        buffer = BytesIO()
+        Image.new("RGB", (300, 300), "red").save(buffer, format="PNG")
+        with tempfile.TemporaryDirectory() as directory:
+            deal = DealObservation(
+                source="mercadolibre", external_id="R1", title="Audífonos", price_minor=119_900,
+                original_price_minor=189_900, evidence=DiscountEvidence.OFFICIAL_ORIGINAL,
+                currency="COP", url="https://example.com/r1",
+            )
+            path = ReelRenderer(Path(directory)).render_reel(deal, "r1", product_image_bytes=buffer.getvalue())
+            info = subprocess.run(
+                ["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries",
+                 "stream=width,height:format=duration", "-of", "csv=p=0", str(path)],
+                capture_output=True, text=True, check=True,
+            ).stdout.split()
+            self.assertEqual(info[0], "1080,1920")
+            self.assertAlmostEqual(float(info[1]), 9.0, delta=0.2)

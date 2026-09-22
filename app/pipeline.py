@@ -9,6 +9,7 @@ from app.config import Settings
 from app.copywriter import facebook_copy
 from app.database import Database
 from app.image_renderer import MissingProductImage, OfferImageRenderer
+from app.reel_renderer import ReelRenderer
 from app.models import Candidate, DiscountEvidence, utc_now
 from app.publishers.facebook import FacebookPublisher, FacebookPublishError
 from app.rates import ExchangeRateProvider
@@ -32,12 +33,14 @@ class OfferPipeline:
         sources: list[DealSource],
         renderer: OfferImageRenderer | None = None,
         rate_provider: ExchangeRateProvider | None = None,
+        reel_renderer: ReelRenderer | None = None,
     ) -> None:
         self.settings = settings
         self.database = database
         self.sources = sources
         self.renderer = renderer or OfferImageRenderer(settings.generated_dir)
         self.rate_provider = rate_provider or ExchangeRateProvider(settings.usd_cop_rate)
+        self.reel_renderer = reel_renderer or ReelRenderer(settings.generated_dir)
 
     def scan(self) -> ScanReport:
         report = ScanReport()
@@ -89,7 +92,7 @@ class OfferPipeline:
         )
         return image, caption
 
-    def publish(self, candidate_id: str, publisher: FacebookPublisher | None = None) -> str:
+    def publish(self, candidate_id: str, publisher: FacebookPublisher | None = None, as_reel: bool = False) -> str:
         candidate = self.database.get_candidate(candidate_id)
         if candidate is None:
             raise ValueError(f"No existe la oferta {candidate_id}.")
@@ -116,13 +119,24 @@ class OfferPipeline:
         if not self.database.reserve_for_publish(candidate_id, self.settings.max_posts_per_day):
             raise ValueError("No se pudo reservar la oferta o se alcanzó el límite diario.")
         try:
-            image, caption = self.render(candidate, require_image=True)
             publisher = publisher or FacebookPublisher(
                 self.settings.fb_page_id,
                 self.settings.fb_page_token,
                 self.settings.meta_graph_api_version,
             )
-            post_id = publisher.publish_photo(image, caption)
+            if as_reel:
+                rate = self.rate_provider.usd_to_cop()
+                video = self.reel_renderer.render_reel(
+                    candidate.deal, f"reel_{candidate.id}", usd_cop_rate=rate,
+                    link_in_comment=self.settings.link_in_comment,
+                )
+                caption = facebook_copy(
+                    candidate.deal, rate, self.settings.affiliate_disclosure, self.settings.link_in_comment
+                ) + " #reels"
+                post_id = publisher.publish_reel(video, caption)
+            else:
+                image, caption = self.render(candidate, require_image=True)
+                post_id = publisher.publish_photo(image, caption)
         except FacebookPublishError as exc:
             self.database.record_publish_error(candidate_id, str(exc), exc.ambiguous)
             raise
@@ -132,7 +146,7 @@ class OfferPipeline:
         except Exception:
             self.database.record_publish_error(candidate_id, "Fallo local antes de publicar.", False)
             raise
-        self.database.record_publication(candidate_id, post_id)
+        self.database.record_publication(candidate_id, post_id, "facebook_reel" if as_reel else "facebook")
         if self.settings.link_in_comment:
             try:
                 publisher.comment(post_id, f"👉 Aquí la oferta: {candidate.deal.url}")

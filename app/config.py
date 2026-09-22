@@ -52,6 +52,7 @@ class Settings:
     affiliate_disclosure: bool
     publish_hours: frozenset[int] = frozenset(range(24))
     link_in_comment: bool = False
+    reel_hours: frozenset[int] = frozenset()
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -95,4 +96,5 @@ class Settings:
             affiliate_disclosure=_as_bool(os.getenv("AFFILIATE_DISCLOSURE"), True),
             publish_hours=_parse_hours(os.getenv("PUBLISH_HOURS", "")),
             link_in_comment=_as_bool(os.getenv("LINK_IN_COMMENT"), False),
+            reel_hours=frozenset(int(h) for h in os.getenv("REEL_HOURS", "").split(",") if h.strip()),
         )

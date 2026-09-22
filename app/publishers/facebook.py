@@ -81,3 +81,53 @@ class FacebookPublisher:
             raise FacebookPublishError("No se pudo publicar el comentario con el enlace.") from exc
         if not response.ok:
             raise FacebookPublishError(f"Meta rechazó el comentario (HTTP {response.status_code}).")
+
+    def publish_reel(self, video_path: Path, description: str) -> str:
+        if not video_path.is_file():
+            raise FacebookPublishError("No existe el video que se intentó publicar.")
+        endpoint = f"https://graph.facebook.com/{self.api_version}/{self.page_id}/video_reels"
+        auth = {"Authorization": f"Bearer {self.page_token}"}
+        started = self._call(endpoint, headers=auth, data={"upload_phase": "start"})
+        video_id = str(started.get("video_id") or "")
+        if not video_id:
+            raise FacebookPublishError("Meta no devolvió video_id al iniciar el reel.")
+        size = video_path.stat().st_size
+        self._call(
+            f"https://rupload.facebook.com/video-upload/{self.api_version}/{video_id}",
+            headers={"Authorization": f"OAuth {self.page_token}", "offset": "0", "file_size": str(size)},
+            data=video_path.read_bytes(),
+            timeout=(8, 120),
+        )
+        # Only the finish call can leave a published reel behind, so only it is ambiguous on timeout.
+        finished = self._call(
+            endpoint,
+            headers=auth,
+            data={"upload_phase": "finish", "video_id": video_id, "video_state": "PUBLISHED", "description": description},
+            ambiguous=True,
+        )
+        if not finished.get("success"):
+            raise FacebookPublishError("Meta no confirmó la publicación del reel.", ambiguous=True)
+        return video_id
+
+    def _call(self, url: str, headers: dict, data, timeout=(8, 45), ambiguous: bool = False) -> dict:
+        try:
+            response = self.session.post(url, headers=headers, data=data, timeout=timeout)
+        except (requests.Timeout, requests.ConnectionError) as exc:
+            raise FacebookPublishError(
+                "Se perdió la conexión con Meta durante el reel" + ("; requiere conciliación manual." if ambiguous else "."),
+                ambiguous=ambiguous,
+            ) from exc
+        except requests.RequestException as exc:
+            raise FacebookPublishError("No se pudo contactar la API de Meta.") from exc
+        try:
+            payload = response.json()
+        except ValueError:
+            payload = {}
+        if not response.ok:
+            error = payload.get("error") if isinstance(payload, dict) else None
+            code = error.get("code") if isinstance(error, dict) else None
+            raise FacebookPublishError(
+                f"Meta rechazó el reel (HTTP {response.status_code}" + (f", código {code}" if code is not None else "") + ").",
+                ambiguous=ambiguous and response.status_code >= 500,
+            )
+        return payload if isinstance(payload, dict) else {}

@@ -189,3 +189,51 @@ class PublisherPipelineTests(unittest.TestCase):
         no_photo = replace(self.deal, external_id="NOIMG", image_url="")
         pipeline = OfferPipeline(self.settings, fresh_db, [FakeDealSource(no_photo)], rate_provider=FixedRate())
         self.assertEqual(pipeline.scan().candidates_created, [])
+
+
+class ReelSession:
+    """Answers the three Reels calls: start, binary upload, finish."""
+
+    def __init__(self):
+        self.calls = []
+
+    def post(self, url, **kwargs):
+        self.calls.append((url, kwargs))
+        response = FakeMetaResponse()
+        if "upload_phase" in str(kwargs.get("data")) and kwargs["data"].get("upload_phase") == "start":
+            response.json = lambda: {"video_id": "vid_789"}
+        else:
+            response.json = lambda: {"success": True}
+        return response
+
+
+class FakeReelRenderer:
+    def __init__(self, directory):
+        self.directory = Path(directory)
+
+    def render_reel(self, deal, name, usd_cop_rate=None, link_in_comment=False, product_image_bytes=None):
+        path = self.directory / f"{name}.mp4"
+        path.write_bytes(b"fake-mp4")
+        return path
+
+
+class ReelPublishTests(unittest.TestCase):
+    setUp = PublisherPipelineTests.setUp
+    tearDown = PublisherPipelineTests.tearDown
+
+    def test_reel_uses_three_phase_upload_and_is_recorded_as_reel(self):
+        self.db.decide(self.deal.candidate_id, "approved")
+        self.pipeline.reel_renderer = FakeReelRenderer(self.temp.name)
+        session = ReelSession()
+        publisher = FacebookPublisher("page", "secret-token", "v26.0", session)
+        self.assertFalse(self.db.reel_published_this_hour())
+        video_id = self.pipeline.publish(self.deal.candidate_id, publisher, as_reel=True)
+        self.assertEqual(video_id, "vid_789")
+        start, upload, finish = session.calls
+        self.assertIn("/page/video_reels", start[0])
+        self.assertIn("rupload.facebook.com/video-upload/v26.0/vid_789", upload[0])
+        self.assertEqual(upload[1]["headers"]["file_size"], "8")
+        self.assertEqual(finish[1]["data"]["upload_phase"], "finish")
+        self.assertIn("#reels", finish[1]["data"]["description"])
+        self.assertTrue(self.db.reel_published_this_hour())
+        self.assertEqual(self.db.get_candidate(self.deal.candidate_id).status, "published")
