@@ -34,20 +34,22 @@ def build_runtime(settings: Settings, include_sources: bool = True) -> tuple[Dat
     return database, OfferPipeline(settings, database, sources)
 
 
-PUBLISH_SOURCES = {"mercadolibre", "amazon", "exito", "alkosto", "ktronix"}
+# Every 6 posts: 2 Mercado Libre, 2 Amazon, 1 Éxito, 1 Alkosto. Other sources are not published.
+PUBLISH_PATTERN = ("mercadolibre", "amazon", "exito", "mercadolibre", "amazon", "alkosto")
 REEL_SOURCES = {"mercadolibre", "amazon"}
 
 
 def publish_queues(database: Database, as_reel: bool = False) -> list[list[str]]:
-    """Approved candidates grouped by source, in round-robin order for this run."""
-    allowed = REEL_SOURCES if as_reel else PUBLISH_SOURCES
+    """Approved candidates grouped by source, ordered by today's position in PUBLISH_PATTERN."""
     by_source: dict[str, list[str]] = {}
     for c in database.list_candidates(status="approved"):
-        if c.deal.source in allowed:
-            by_source.setdefault(c.deal.source, []).append(c.id)
-    # Source published last goes to the back so consecutive runs alternate.
-    last = database.last_published_source()
-    return [q for s, q in by_source.items() if s != last] + ([by_source[last]] if last in by_source else [])
+        by_source.setdefault(c.deal.source, []).append(c.id)
+    start = database.posts_today() % len(PUBLISH_PATTERN)
+    order: list[str] = []
+    for source in PUBLISH_PATTERN[start:] + PUBLISH_PATTERN[:start]:
+        if source in by_source and source not in order and (not as_reel or source in REEL_SOURCES):
+            order.append(source)
+    return [by_source[s] for s in order]
 
 
 def show_candidates(database: Database, status: str) -> None:

@@ -10,10 +10,8 @@ from urllib3.util.retry import Retry
 from app.models import DealObservation, DiscountEvidence, to_minor
 from app.sources.base import DealSource, SourceError
 
-STORE_QUERIES = (
-    "televisor", "celular", "portatil", "audifonos",
-    "nevera", "lavadora", "freidora de aire", "aspiradora",
-)
+APPLIANCE_QUERIES = ("televisor", "nevera", "consola")
+GROCERY_QUERIES = ("detergente", "cafe", "aceite", "arroz", "atun", "cerveza", "papel higienico")
 _UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36"
 
 
@@ -44,10 +42,14 @@ def _deal(source: str, external_id: str, title: str, price: float, before: float
 
 
 class _StoreSource(DealSource):
-    def __init__(self, source_name: str, queries: tuple[str, ...] = STORE_QUERIES, per_query: int = 20) -> None:
+    def __init__(
+        self, source_name: str, queries: tuple[str, ...] = APPLIANCE_QUERIES, per_query: int = 20,
+        min_savings_cop: int | None = None,
+    ) -> None:
         self.source_name = source_name
         self.queries = queries
         self.per_query = per_query
+        self.min_savings_cop = min_savings_cop  # None = use the global MIN_SAVINGS_COP
 
     def fetch(self) -> list[DealObservation]:
         deals: dict[str, DealObservation] = {}  # keyed by title: color variants share it
@@ -164,7 +166,11 @@ class AlgoliaStoreSource(_StoreSource):
 
 def colombia_store_sources() -> list[DealSource]:
     return [
-        VtexStoreSource("exito", "https://www.exito.com", per_query=50),
-        AlgoliaStoreSource("alkosto", "alkostoIndexAlgoliaPRD", "https://www.alkosto.com"),
-        AlgoliaStoreSource("ktronix", "ktronixIndexAlgoliaPRD", "https://www.ktronix.com"),
+        # Grocery savings are a few thousand pesos, so Éxito gets a lower savings floor.
+        VtexStoreSource(
+            "exito", "https://www.exito.com", per_query=50,
+            queries=APPLIANCE_QUERIES + GROCERY_QUERIES, min_savings_cop=3000,
+        ),
+        # Alkosto search is fuzzy (grocery words return headphones), so only appliance terms.
+        AlgoliaStoreSource("alkosto", "alkostoIndexAlgoliaPRD", "https://www.alkosto.com", queries=APPLIANCE_QUERIES, per_query=40),
     ]

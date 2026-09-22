@@ -35,10 +35,8 @@ _QUESTIONS = [
 _SOURCE_TAGS = {
     "mercadolibre": "#mercadolibre #cupones",
     "amazon": "#amazon #amazonfinds",
-    "woot": "#woot #amazon",
     "exito": "#exito #almacenesexito",
     "alkosto": "#alkosto",
-    "ktronix": "#ktronix",
 }
 
 

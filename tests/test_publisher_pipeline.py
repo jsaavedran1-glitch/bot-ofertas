@@ -117,7 +117,7 @@ class PublisherPipelineTests(unittest.TestCase):
         comment_url, comment = session.calls[1]
         self.assertIn("/v26.0/page_456/comments", comment_url)
         self.assertIn("https://example.com/P", comment["data"]["message"])
-        self.assertEqual(self.db.last_published_source(), "test")
+        self.assertEqual(self.db.posts_today(), 1)
 
     def test_reseen_candidate_is_refreshed_and_stale_ones_expire(self):
         from dataclasses import replace
@@ -237,3 +237,22 @@ class ReelPublishTests(unittest.TestCase):
         self.assertIn("#reels", finish[1]["data"]["description"])
         self.assertTrue(self.db.reel_published_this_hour())
         self.assertEqual(self.db.get_candidate(self.deal.candidate_id).status, "published")
+
+
+class SourceSavingsFloorTests(unittest.TestCase):
+    def test_source_can_lower_min_savings_for_groceries(self):
+        from dataclasses import replace
+        with tempfile.TemporaryDirectory() as directory:
+            settings = settings_for(directory)
+            db = Database(settings.database_url)
+            db.initialize()
+            coffee = DealObservation(
+                source="exito", external_id="CAFE", title="Café 454 g", price_minor=15_000,
+                original_price_minor=20_000, evidence=DiscountEvidence.OFFICIAL_ORIGINAL,
+                currency="COP", url="https://example.com/cafe", image_url="https://example.com/cafe.png",
+            )
+            strict = FakeDealSource(coffee)
+            self.assertEqual(OfferPipeline(settings, db, [strict], rate_provider=FixedRate()).scan().candidates_created, [])
+            relaxed = FakeDealSource(replace(coffee, external_id="CAFE2"))
+            relaxed.min_savings_cop = 3000
+            self.assertEqual(len(OfferPipeline(settings, db, [relaxed], rate_provider=FixedRate()).scan().candidates_created), 1)

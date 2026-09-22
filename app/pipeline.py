@@ -67,12 +67,8 @@ class OfferPipeline:
                 self.database.record_observation(observed)
                 report.observations += 1
                 deal = observed.with_history_reference(reference) if reference else observed
-                if not qualifies(
-                    deal,
-                    self.settings.min_discount_pct,
-                    self.settings.min_savings_cop,
-                    usd_rate,
-                ):
+                min_savings = getattr(source, "min_savings_cop", None) or self.settings.min_savings_cop
+                if not qualifies(deal, self.settings.min_discount_pct, min_savings, usd_rate):
                     continue
                 if self.database.was_published_recently(
                     deal.source, deal.external_id, self.settings.repost_cooldown_days

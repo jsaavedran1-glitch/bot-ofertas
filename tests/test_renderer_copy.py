@@ -51,15 +51,15 @@ class RendererTests(unittest.TestCase):
 class CopyAndConfigTests(unittest.TestCase):
     def test_caption_moves_link_to_comment_and_tags_by_source(self):
         deal = DealObservation(
-            source="woot", external_id="W1", title="Parlante", price_minor=9000,
-            original_price_minor=15900, evidence=DiscountEvidence.OFFICIAL_ORIGINAL,
-            currency="USD", url="https://example.com/w1",
+            source="alkosto", external_id="W1", title="Parlante", price_minor=90000,
+            original_price_minor=159000, evidence=DiscountEvidence.OFFICIAL_ORIGINAL,
+            currency="COP", url="https://example.com/w1",
         )
         self.assertIn("https://example.com/w1", facebook_copy(deal, None, True))
         text = facebook_copy(deal, None, True, link_in_comment=True)
         self.assertNotIn("https://example.com/w1", text)
         self.assertIn("primer comentario", text)
-        self.assertIn("#woot", text)
+        self.assertIn("#alkosto", text)
         self.assertNotIn("#mercadolibre", text)
         self.assertIn("?", text.split("#OjoAlPrecio")[0].strip().splitlines()[-1])
 

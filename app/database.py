@@ -273,14 +273,11 @@ class Database:
             )
             return False
 
-    def last_published_source(self) -> str | None:
-        sql = self._sql(
-            "SELECT c.source FROM publications p JOIN candidates c ON c.id=p.candidate_id "
-            "ORDER BY p.published_at DESC LIMIT 1"
-        )
+    def posts_today(self) -> int:
+        local_day = utc_now().astimezone(ZoneInfo("America/Bogota")).date().isoformat()
         with self._connection() as conn:
-            row = self._dict(conn.execute(sql).fetchone())
-        return row["source"] if row else None
+            row = conn.execute(self._sql("SELECT COUNT(*) AS total FROM publications WHERE local_day=?"), (local_day,)).fetchone()
+        return int(row["total"])
 
     def reel_published_this_hour(self) -> bool:
         local = utc_now().astimezone(ZoneInfo("America/Bogota"))
