@@ -102,6 +102,8 @@ def parser() -> argparse.ArgumentParser:
     for name in ("approve", "reject", "render", "publish"):
         command = commands.add_parser(name)
         command.add_argument("candidate_id")
+        if name == "publish":
+            command.add_argument("--reel", action="store_true", help="Publicar como Reel")
     run = commands.add_parser("run", help="Ejecutar un ciclo")
     modes = run.add_mutually_exclusive_group()
     modes.add_argument("--dry-run", action="store_true")
@@ -137,8 +139,8 @@ def main() -> int:
             print(image.resolve())
             print(caption)
         elif args.command == "publish":
-            post_id = pipeline.publish(args.candidate_id)
-            print(f"Publicación creada: {post_id}")
+            post_id = pipeline.publish(args.candidate_id, as_reel=args.reel)
+            print(f"{'Reel' if args.reel else 'Publicación'} creado: {post_id}")
         elif args.command == "run":
             report = pipeline.scan()
             ids = report.candidates_created
