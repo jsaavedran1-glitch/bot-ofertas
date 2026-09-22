@@ -4,7 +4,12 @@ import unittest
 
 import requests
 
+from io import BytesIO
+
+from PIL import Image
+
 from app.database import Database
+from app.image_renderer import OfferImageRenderer
 from app.models import DealObservation, DiscountEvidence
 from app.pipeline import OfferPipeline
 from app.publishers.facebook import FacebookPublisher, FacebookPublishError
@@ -32,6 +37,21 @@ class RecordingSession:
         if self.failure:
             raise self.failure
         return FakeMetaResponse()
+
+
+def _png() -> bytes:
+    buffer = BytesIO()
+    Image.new("RGB", (40, 40), "red").save(buffer, format="PNG")
+    return buffer.getvalue()
+
+
+class PhotoRenderer(OfferImageRenderer):
+    def __init__(self, output_dir, photo=True):
+        super().__init__(output_dir)
+        self.photo = photo
+
+    def _download(self, url):
+        return _png() if self.photo else None
 
 
 class FixedRate:
@@ -66,11 +86,12 @@ class PublisherPipelineTests(unittest.TestCase):
         self.deal = DealObservation(
             source="test", external_id="P", title="Producto", price_minor=80_000,
             original_price_minor=100_000, evidence=DiscountEvidence.OFFICIAL_ORIGINAL,
-            currency="COP", url="https://example.com/P",
+            currency="COP", url="https://example.com/P", image_url="https://example.com/P.png",
         )
         self.db.create_candidate(self.deal, 40)
         self.pipeline = OfferPipeline(
-            self.settings, self.db, [SameSource(self.deal)], rate_provider=FixedRate()
+            self.settings, self.db, [SameSource(self.deal)], rate_provider=FixedRate(),
+            renderer=PhotoRenderer(self.settings.generated_dir),
         )
 
     def tearDown(self):
@@ -127,7 +148,7 @@ class PublisherPipelineTests(unittest.TestCase):
         changed = DealObservation(
             source="test", external_id="P", title="Producto", price_minor=90_000,
             original_price_minor=100_000, evidence=DiscountEvidence.OFFICIAL_ORIGINAL,
-            currency="COP", url="https://example.com/P",
+            currency="COP", url="https://example.com/P", image_url="https://example.com/P.png",
         )
         self.pipeline.sources = [SameSource(changed)]
         session = RecordingSession()
@@ -141,7 +162,8 @@ class PublisherPipelineTests(unittest.TestCase):
         fresh_db = Database(f"sqlite:///{self.temp.name}/dry.db")
         fresh_db.initialize()
         pipeline = OfferPipeline(
-            self.settings, fresh_db, [FakeDealSource(self.deal)], rate_provider=FixedRate()
+            self.settings, fresh_db, [FakeDealSource(self.deal)], rate_provider=FixedRate(),
+            renderer=PhotoRenderer(self.settings.generated_dir),
         )
         report = pipeline.scan()
         self.assertEqual(report.candidates_created, [self.deal.candidate_id])
@@ -149,3 +171,21 @@ class PublisherPipelineTests(unittest.TestCase):
         self.assertEqual(len(results), 1)
         self.assertEqual(results[0][0].status, "pending")
         self.assertTrue(results[0][1].is_file())
+
+    def test_deal_without_photo_is_not_published_nor_counted(self):
+        self.db.decide(self.deal.candidate_id, "approved")
+        self.pipeline.renderer = PhotoRenderer(self.settings.generated_dir, photo=False)
+        session = RecordingSession()
+        publisher = FacebookPublisher("page", "secret-token", "v26.0", session)
+        with self.assertRaisesRegex(ValueError, "foto"):
+            self.pipeline.publish(self.deal.candidate_id, publisher)
+        self.assertIsNone(session.call)
+        self.assertEqual(self.db.get_candidate(self.deal.candidate_id).status, "failed")
+
+    def test_scan_skips_deals_without_image_url(self):
+        from dataclasses import replace
+        fresh_db = Database(f"sqlite:///{self.temp.name}/noimg.db")
+        fresh_db.initialize()
+        no_photo = replace(self.deal, external_id="NOIMG", image_url="")
+        pipeline = OfferPipeline(self.settings, fresh_db, [FakeDealSource(no_photo)], rate_provider=FixedRate())
+        self.assertEqual(pipeline.scan().candidates_created, [])

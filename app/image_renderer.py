@@ -23,6 +23,10 @@ _LOGO_PATH = Path(__file__).parent.parent / "assets" / "logo.png"
 _ICON_PATH = Path(__file__).parent.parent / "assets" / "icon.png"
 
 
+class MissingProductImage(ValueError):
+    pass
+
+
 class OfferImageRenderer:
     def __init__(self, output_dir: Path, session: requests.Session | None = None) -> None:
         self.output_dir = output_dir
@@ -45,6 +49,7 @@ class OfferImageRenderer:
         candidate_id: str,
         product_image_bytes: bytes | None = None,
         usd_cop_rate: Decimal | None = None,
+        require_image: bool = False,
     ) -> Path:
         self.output_dir.mkdir(parents=True, exist_ok=True)
         canvas = Image.new("RGB", CANVAS, "#071426")
@@ -72,6 +77,8 @@ class OfferImageRenderer:
         title_bottom = ty + 4
 
         product = self._load_product_image(product_image_bytes or self._download(deal.image_url))
+        if product is None and require_image:
+            raise MissingProductImage("La oferta no tiene foto del producto; no se publica.")
         img_area_top = title_bottom
         img_center_y = img_area_top + (864 - img_area_top) // 2
         if product is None:
@@ -125,6 +132,9 @@ class OfferImageRenderer:
                 draw.line((680, 643, 680 + ref_w, 643), fill="#FF6B6B", width=4)
             if ef48:
                 draw.text((625, 581), "💰", font=ef48, embedded_color=True)
+
+        if product is not None:
+            self._draw_follow_cta(canvas, draw, (625, 690, 1038, 872), compact=True)
 
         draw.rounded_rectangle((42, 900, 1038, 1038), radius=28, fill="#0E223A")
         if self._logo_footer:
@@ -265,27 +275,41 @@ class OfferImageRenderer:
             lines[-1] = lines[-1][: max(1, len(lines[-1]) - 1)] + "…"
         return font, lines
 
-    def _draw_follow_cta(self, canvas: Image.Image, draw: ImageDraw.ImageDraw, box: tuple[int, int, int, int]) -> None:
+    def _draw_follow_cta(
+        self, canvas: Image.Image, draw: ImageDraw.ImageDraw, box: tuple[int, int, int, int], compact: bool = False
+    ) -> None:
         x1, y1, x2, y2 = box
-        cx, width = (x1 + x2) // 2, x2 - x1 - 50
+        cx, width = (x1 + x2) // 2, x2 - x1 - (30 if compact else 50)
         orange, white, muted = "#FFB11B", "#FFFFFF", "#A9B5C5"
-        draw.rounded_rectangle(box, radius=34, fill="#0E223A")
+        if compact:
+            draw.rounded_rectangle(box, radius=26, fill="#0E223A", outline=orange, width=3)
+        else:
+            draw.rounded_rectangle(box, radius=34, fill="#0E223A")
 
-        icon_size = max(60, min(140, (y2 - y1) // 4))
-        try:
-            icon = Image.open(_ICON_PATH).convert("RGBA")
-            icon.thumbnail((icon_size, icon_size), Image.Resampling.LANCZOS)
-        except (OSError, UnidentifiedImageError):
-            icon = None
+        icon = None
+        if not compact:
+            icon_size = max(60, min(140, (y2 - y1) // 4))
+            try:
+                icon = Image.open(_ICON_PATH).convert("RGBA")
+                icon.thumbnail((icon_size, icon_size), Image.Resampling.LANCZOS)
+            except (OSError, UnidentifiedImageError):
+                icon = None
 
-        head_font, head = self._fit_lines(draw, "¡NO TE PIERDAS NINGUNA OFERTA!", width, max_lines=2, start=40, minimum=26)
-        body_font, body = self._fit_lines(draw, "Sigue la página y activa las notificaciones", width, max_lines=2, start=24, minimum=18)
+        head_font, head = self._fit_lines(
+            draw, "¡NO TE PIERDAS NINGUNA OFERTA!", width, max_lines=2, start=26 if compact else 40, minimum=18
+        )
+        body_font, body = self._fit_lines(
+            draw, "Sigue la página y activa las notificaciones", width, max_lines=2,
+            start=17 if compact else 24, minimum=14,
+        )
         button_text = "SEGUIR OJO AL PRECIO"
-        button_font = self._fit_font(draw, button_text, width - 60, 24, 16)
+        button_font = self._fit_font(draw, button_text, width - 60, 20 if compact else 24, 14)
         foot_font, foot = self._fit_lines(draw, "¿Te sirvió? ¡Reacciona y compártela!", width, max_lines=2, start=20, minimum=16)
+        if compact:
+            foot = []
 
-        gap = 18
-        button_h = button_font.size + 30
+        gap = 8 if compact else 18
+        button_h = button_font.size + (20 if compact else 30)
         blocks = [
             (icon.height if icon else 0),
             len(head) * (head_font.size + 6),
@@ -293,7 +317,8 @@ class OfferImageRenderer:
             button_h,
             len(foot) * (foot_font.size + 4),
         ]
-        y = y1 + max(16, ((y2 - y1) - sum(blocks) - gap * (len(blocks) - 1)) // 2)
+        blocks = [b for b in blocks if b]
+        y = y1 + max(10, ((y2 - y1) - sum(blocks) - gap * (len(blocks) - 1)) // 2)
 
         if icon:
             canvas.paste(icon, (cx - icon.width // 2, y), icon)
@@ -302,7 +327,7 @@ class OfferImageRenderer:
             for line in lines:
                 draw.text((cx, y), line, anchor="mt", font=font, fill=fill)
                 y += font.size + step
-            y += gap
+            y += gap - step
         bw = draw.textlength(button_text, font=button_font) + 60
         draw.rounded_rectangle((cx - bw / 2, y, cx + bw / 2, y + button_h), radius=button_h // 2, fill=orange)
         draw.text((cx, y + button_h / 2), button_text, anchor="mm", font=button_font, fill="#071426")

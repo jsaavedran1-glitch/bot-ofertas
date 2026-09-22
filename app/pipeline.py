@@ -8,7 +8,7 @@ import sys
 from app.config import Settings
 from app.copywriter import facebook_copy
 from app.database import Database
-from app.image_renderer import OfferImageRenderer
+from app.image_renderer import MissingProductImage, OfferImageRenderer
 from app.models import Candidate, DiscountEvidence, utc_now
 from app.publishers.facebook import FacebookPublisher, FacebookPublishError
 from app.rates import ExchangeRateProvider
@@ -75,13 +75,15 @@ class OfferPipeline:
                     deal.source, deal.external_id, self.settings.repost_cooldown_days
                 ):
                     continue
+                if not deal.image_url:
+                    continue
                 if self.database.create_candidate(deal, score(deal)):
                     report.candidates_created.append(deal.candidate_id)
         return report
 
-    def render(self, candidate: Candidate) -> tuple[Path, str]:
+    def render(self, candidate: Candidate, require_image: bool = False) -> tuple[Path, str]:
         rate = self.rate_provider.usd_to_cop()
-        image = self.renderer.render(candidate.deal, candidate.id, usd_cop_rate=rate)
+        image = self.renderer.render(candidate.deal, candidate.id, usd_cop_rate=rate, require_image=require_image)
         caption = facebook_copy(
             candidate.deal, rate, self.settings.affiliate_disclosure, self.settings.link_in_comment
         )
@@ -114,7 +116,7 @@ class OfferPipeline:
         if not self.database.reserve_for_publish(candidate_id, self.settings.max_posts_per_day):
             raise ValueError("No se pudo reservar la oferta o se alcanzó el límite diario.")
         try:
-            image, caption = self.render(candidate)
+            image, caption = self.render(candidate, require_image=True)
             publisher = publisher or FacebookPublisher(
                 self.settings.fb_page_id,
                 self.settings.fb_page_token,
@@ -123,6 +125,9 @@ class OfferPipeline:
             post_id = publisher.publish_photo(image, caption)
         except FacebookPublishError as exc:
             self.database.record_publish_error(candidate_id, str(exc), exc.ambiguous)
+            raise
+        except MissingProductImage as exc:
+            self.database.record_publish_error(candidate_id, str(exc), False)
             raise
         except Exception:
             self.database.record_publish_error(candidate_id, "Fallo local antes de publicar.", False)
