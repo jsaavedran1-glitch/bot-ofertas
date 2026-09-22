@@ -14,3 +14,4 @@ feeds/*.json
 feeds/*.csv
 *.log
 .DS_Store
+.env.bak
