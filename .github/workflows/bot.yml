@@ -40,13 +40,13 @@ jobs:
       POST_MODE: "review"
       MIN_DISCOUNT_PCT: "20"
       MIN_SAVINGS_COP: "20000"
-      # 13 posts con foto + 3 reels (cuentan aquí) + 1 promo del día = 17 al día, cada una con su historia
-      MAX_POSTS_PER_DAY: "16"
+      # 9 posts con foto + 3 reels (cuentan aquí) + 1 promo del día = 13 al día, cada una con su historia
+      MAX_POSTS_PER_DAY: "12"
       # 50 y no 60: absorbe los minutos de retraso con que arranca cada ejecución
       MIN_MINUTES_BETWEEN_POSTS: "50"
       MAX_POSTS_PER_RUN: "1"
-      # Una publicación por hora de 7:00 a 23:00 (17 franjas)
-      PUBLISH_HOURS: "7-24"
+      # Una publicación por hora: 7:00-13:00 y 17:00-22:00 (13 franjas)
+      PUBLISH_HOURS: "7-14,17-23"
       LINK_IN_COMMENT: "true"
       REEL_HOURS: "8,13,20"
       STORIES: "true"
