@@ -130,9 +130,13 @@ def main() -> int:
                     database.decide(candidate_id, "approved", actor="system")
                 # Publish from approved backlog (new + previously approved)
                 approved = [c.id for c in database.list_candidates(status="approved")]
-                for candidate_id in approved[:settings.max_posts_per_run]:
+                published = 0
+                for candidate_id in approved:
+                    if published >= settings.max_posts_per_run:
+                        break
                     try:
                         print(f"Publicada {candidate_id}: {pipeline.publish(candidate_id)}")
+                        published += 1
                     except Exception as exc:
                         print(f"Falló {candidate_id}: {exc}", file=sys.stderr)
             else:
