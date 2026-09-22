@@ -2,7 +2,7 @@ name: Ojo al Precio - detector de ofertas
 
 on:
   schedule:
-    - cron: "0,30 * * * *"
+    - cron: "*/10 * * * *"
       timezone: "America/Bogota"
   workflow_dispatch:
     inputs:
