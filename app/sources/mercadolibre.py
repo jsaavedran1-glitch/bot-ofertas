@@ -22,6 +22,7 @@ CATEGORIES = [
     "MCO1500",  # Electrodomésticos
     "MCO1648",  # Herramientas
     "MCO1276",  # Deportes y Fitness
+    "MCO1430",  # Ropa y Accesorios (incluye tiendas oficiales como Adidas)
     "MCO1367",  # Hogar y Muebles
     "MCO5726",  # Belleza y Cuidado Personal
 ]

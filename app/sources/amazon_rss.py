@@ -21,6 +21,7 @@ _FEEDS = [
     "https://www.dealnews.com/c142/Electronics/?rss=1",
     "https://www.dealnews.com/c39/Computers/?rss=1",
     "https://www.dealnews.com/c166/Video-Games/?rss=1",
+    "https://www.dealnews.com/c202/Clothing-Accessories/?rss=1",
 ]
 
 _RETAILER_SOURCE = {
