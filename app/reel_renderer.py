@@ -16,6 +16,7 @@ CARD = (90, 250, 990, 1090)
 LOWER = (0, 1280, W, 1790)  # area where the phases swap
 PHASES = ((0.0, 2.0), (2.0, 5.2), (5.2, SECONDS))
 FADE = 0.25
+STORY_MOMENT = 4.9  # seconds into the reel: before price struck through, new price shown
 
 
 def _ease_out(x: float) -> float:
@@ -53,9 +54,47 @@ class ReelRenderer(OfferImageRenderer):
         product_image_bytes: bytes | None = None,
         link_in_comment: bool = False,
     ) -> Path:
+        base, photo, texts, in_cop = self._prepare(deal, usd_cop_rate, product_image_bytes, link_in_comment)
+        output = self.output_dir / f"{name}.mp4"
+        cmd = [
+            "ffmpeg", "-y", "-loglevel", "error",
+            "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{W}x{H}", "-r", str(FPS), "-i", "-",
+            "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo",
+            "-shortest", "-c:v", "libx264", "-preset", "medium", "-crf", "20", "-pix_fmt", "yuv420p",
+            "-c:a", "aac", "-movflags", "+faststart", str(output),
+        ]
+        with subprocess.Popen(cmd, stdin=subprocess.PIPE) as proc:
+            for i in range(FPS * SECONDS):
+                t = i / FPS
+                proc.stdin.write(self._frame(base, photo, texts, t, in_cop, deal).tobytes())
+            proc.stdin.close()
+            if proc.wait() != 0:
+                raise RuntimeError("ffmpeg no pudo generar el reel.")
+        return output
+
+    def render_story(
+        self,
+        deal: DealObservation,
+        name: str,
+        usd_cop_rate: Decimal | None = None,
+        product_image_bytes: bytes | None = None,
+    ) -> Path:
+        """9:16 still for Page stories: the reel's before/now price moment plus a pointer to the post."""
+        base, photo, texts, in_cop = self._prepare(deal, usd_cop_rate, product_image_bytes, False)
+        frame = self._frame(base, photo, texts, STORY_MOMENT, in_cop, deal)
+        draw = ImageDraw.Draw(frame)
+        text, font = "Mira la oferta completa en nuestra página", self._font(34, bold=True)
+        x = W // 2 + 30 - int(draw.textlength(text, font=font)) // 2
+        draw.text((x, 1745), text, anchor="lm", font=font, fill=WHITE)
+        self._paste_emoji(frame, (x - 62, 1722), "👀", 46)
+        output = self.output_dir / f"{name}.png"
+        frame.save(output, format="PNG", optimize=True)
+        return output
+
+    def _prepare(self, deal, usd_cop_rate, product_image_bytes, link_in_comment):
         product = self._load_product_image(product_image_bytes or self._download(deal.image_url))
         if product is None:
-            raise MissingProductImage("La oferta no tiene foto del producto; no se genera el reel.")
+            raise MissingProductImage("La oferta no tiene foto del producto; no se genera el video ni la historia.")
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
         in_cop = deal.currency == "USD" and bool(usd_cop_rate)
@@ -75,23 +114,7 @@ class ReelRenderer(OfferImageRenderer):
             "now": self._text_layer(shown(deal.price_minor), 96, ORANGE),
             "cta": self._cta("Link de la oferta en los comentarios" if link_in_comment else "Link de la oferta en la descripción"),
         }
-
-        output = self.output_dir / f"{name}.mp4"
-        cmd = [
-            "ffmpeg", "-y", "-loglevel", "error",
-            "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{W}x{H}", "-r", str(FPS), "-i", "-",
-            "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo",
-            "-shortest", "-c:v", "libx264", "-preset", "medium", "-crf", "20", "-pix_fmt", "yuv420p",
-            "-c:a", "aac", "-movflags", "+faststart", str(output),
-        ]
-        with subprocess.Popen(cmd, stdin=subprocess.PIPE) as proc:
-            for i in range(FPS * SECONDS):
-                t = i / FPS
-                proc.stdin.write(self._frame(base, photo, texts, t, in_cop, deal).tobytes())
-            proc.stdin.close()
-            if proc.wait() != 0:
-                raise RuntimeError("ffmpeg no pudo generar el reel.")
-        return output
+        return base, photo, texts, in_cop
 
     # ---------- static layers ----------
 

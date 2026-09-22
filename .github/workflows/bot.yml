@@ -46,6 +46,7 @@ jobs:
       # Activar cuando FB_PAGE_TOKEN tenga el permiso pages_manage_engagement
       LINK_IN_COMMENT: "false"
       REEL_HOURS: "8,13,20"
+      STORIES: "true"
       REPOST_COOLDOWN_DAYS: "7"
     steps:
       - uses: actions/checkout@v4

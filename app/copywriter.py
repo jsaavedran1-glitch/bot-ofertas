@@ -37,6 +37,7 @@ _SOURCE_TAGS = {
     "amazon": "#amazon #amazonfinds",
     "exito": "#exito #almacenesexito",
     "alkosto": "#alkosto",
+    "ktronix": "#ktronix",
 }
 
 

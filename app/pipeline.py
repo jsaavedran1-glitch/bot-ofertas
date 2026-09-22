@@ -143,6 +143,15 @@ class OfferPipeline:
             self.database.record_publish_error(candidate_id, "Fallo local antes de publicar.", False)
             raise
         self.database.record_publication(candidate_id, post_id, "facebook_reel" if as_reel else "facebook")
+        if self.settings.stories and not as_reel:
+            # A story is a bonus on top of the post: failures only warn.
+            try:
+                story = self.reel_renderer.render_story(
+                    candidate.deal, f"story_{candidate.id}", usd_cop_rate=self.rate_provider.usd_to_cop()
+                )
+                publisher.publish_story(story)
+            except (FacebookPublishError, MissingProductImage, OSError) as exc:
+                print(f"Advertencia historia {candidate_id}: {exc}", file=sys.stderr)
         if self.settings.link_in_comment:
             try:
                 publisher.comment(post_id, f"👉 Aquí la oferta: {candidate.deal.url}")

@@ -173,4 +173,5 @@ def colombia_store_sources() -> list[DealSource]:
         ),
         # Alkosto search is fuzzy (grocery words return headphones), so only appliance terms.
         AlgoliaStoreSource("alkosto", "alkostoIndexAlgoliaPRD", "https://www.alkosto.com", queries=APPLIANCE_QUERIES, per_query=40),
+        AlgoliaStoreSource("ktronix", "ktronixIndexAlgoliaPRD", "https://www.ktronix.com", queries=APPLIANCE_QUERIES, per_query=40),
     ]

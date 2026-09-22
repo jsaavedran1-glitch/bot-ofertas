@@ -131,3 +131,21 @@ class FacebookPublisher:
                 ambiguous=ambiguous and response.status_code >= 500,
             )
         return payload if isinstance(payload, dict) else {}
+
+    def publish_story(self, image_path: Path) -> str:
+        """Page photo story: upload the image unpublished, then publish it as a story."""
+        auth = {"Authorization": f"Bearer {self.page_token}"}
+        base = f"https://graph.facebook.com/{self.api_version}/{self.page_id}"
+        try:
+            with image_path.open("rb") as handle:
+                response = self.session.post(
+                    f"{base}/photos", headers=auth, data={"published": "false"},
+                    files={"source": (image_path.name, handle, "image/png")}, timeout=(8, 45),
+                )
+        except requests.RequestException as exc:
+            raise FacebookPublishError("No se pudo subir la imagen de la historia.") from exc
+        photo_id = str((response.json() if response.ok else {}).get("id") or "")
+        if not photo_id:
+            raise FacebookPublishError(f"Meta rechazó la imagen de la historia (HTTP {response.status_code}).")
+        story = self._call(f"{base}/photo_stories", headers=auth, data={"photo_id": photo_id})
+        return str(story.get("post_id") or photo_id)

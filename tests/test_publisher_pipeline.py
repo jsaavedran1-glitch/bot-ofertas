@@ -216,6 +216,11 @@ class FakeReelRenderer:
         path.write_bytes(b"fake-mp4")
         return path
 
+    def render_story(self, deal, name, usd_cop_rate=None, product_image_bytes=None):
+        path = self.directory / f"{name}.png"
+        path.write_bytes(b"fake-png")
+        return path
+
 
 class ReelPublishTests(unittest.TestCase):
     setUp = PublisherPipelineTests.setUp
@@ -256,3 +261,53 @@ class SourceSavingsFloorTests(unittest.TestCase):
             relaxed = FakeDealSource(replace(coffee, external_id="CAFE2"))
             relaxed.min_savings_cop = 3000
             self.assertEqual(len(OfferPipeline(settings, db, [relaxed], rate_provider=FixedRate()).scan().candidates_created), 1)
+
+
+class StorySession:
+    def __init__(self):
+        self.calls = []
+
+    def post(self, url, **kwargs):
+        self.calls.append((url, kwargs))
+        response = FakeMetaResponse()
+        data = kwargs.get("data") or {}
+        if url.endswith("/photo_stories"):
+            response.json = lambda: {"success": True, "post_id": "story_9"}
+        elif data.get("published") == "false":
+            response.json = lambda: {"id": "unpublished_1"}
+        return response
+
+
+class StoryTests(unittest.TestCase):
+    setUp = PublisherPipelineTests.setUp
+    tearDown = PublisherPipelineTests.tearDown
+
+    def _publish(self, renderer):
+        from dataclasses import replace
+        self.db.decide(self.deal.candidate_id, "approved")
+        self.pipeline.settings = replace(self.settings, stories=True)
+        self.pipeline.reel_renderer = renderer
+        session = StorySession()
+        post_id = self.pipeline.publish(self.deal.candidate_id, FacebookPublisher("page", "t", "v26.0", session))
+        return post_id, session
+
+    def test_photo_post_is_followed_by_a_story(self):
+        post_id, session = self._publish(FakeReelRenderer(self.temp.name))
+        self.assertEqual(post_id, "page_456")
+        urls = [u for u, _ in session.calls]
+        self.assertTrue(urls[0].endswith("/page/photos"))
+        self.assertEqual(session.calls[1][1]["data"], {"published": "false"})
+        self.assertTrue(urls[2].endswith("/page/photo_stories"))
+        self.assertEqual(session.calls[2][1]["data"], {"photo_id": "unpublished_1"})
+
+    def test_story_failure_does_not_undo_the_post(self):
+        from app.image_renderer import MissingProductImage
+
+        class Broken(FakeReelRenderer):
+            def render_story(self, *args, **kwargs):
+                raise MissingProductImage("sin foto")
+
+        post_id, session = self._publish(Broken(self.temp.name))
+        self.assertEqual(post_id, "page_456")
+        self.assertEqual(len(session.calls), 1)
+        self.assertEqual(self.db.get_candidate(self.deal.candidate_id).status, "published")
