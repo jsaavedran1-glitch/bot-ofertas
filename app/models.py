@@ -35,6 +35,13 @@ def money(value: int, currency: str) -> str:
     return f"US${amount:,.2f}"
 
 
+STORE_NAMES = {"mercadolibre": "Mercado Libre", "exito": "Éxito"}
+
+
+def store_name(source: str) -> str:
+    return STORE_NAMES.get(source, source.replace("_", " ").title())
+
+
 def utc_now() -> datetime:
     return datetime.now(timezone.utc)
 

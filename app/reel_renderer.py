@@ -8,7 +8,7 @@ import subprocess
 from PIL import Image, ImageDraw, ImageOps
 
 from app.image_renderer import MissingProductImage, OfferImageRenderer
-from app.models import DealObservation, from_minor, money, to_minor
+from app.models import DealObservation, from_minor, money, store_name, to_minor
 
 W, H, FPS, SECONDS = 1080, 1920, 30, 9
 ORANGE, WHITE, MUTED, NAVY, PANEL = "#FFB11B", "#FFFFFF", "#A9B5C5", "#071426", "#0E223A"
@@ -102,7 +102,7 @@ class ReelRenderer(OfferImageRenderer):
             r = y / H
             draw.line((0, y, W, y), fill=(7 + int(8 * r), 20 + int(18 * r), 38 + int(26 * r)))
         draw.rounded_rectangle((60, 80, W - 60, 190), radius=30, fill=PANEL)
-        store = "MERCADO LIBRE" if deal.source == "mercadolibre" else deal.source.replace("_", " ").upper()
+        store = store_name(deal.source).upper()
         draw.text((W // 2, 135), store, anchor="mm", font=self._fit_font(draw, store, 900, 56, 34), fill=ORANGE)
         draw.rounded_rectangle(CARD, radius=44, fill=WHITE)
         font, lines = self._fit_lines(draw, deal.title, 920, max_lines=2, start=46, minimum=30)

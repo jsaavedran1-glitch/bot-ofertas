@@ -63,7 +63,7 @@ class DatabaseTests(unittest.TestCase):
 
 
 class PublishQueueTests(unittest.TestCase):
-    def test_only_mercadolibre_and_amazon_are_published(self):
+    def test_allowed_sources_and_reels_only_mercadolibre_amazon(self):
         import tempfile
         from main import publish_queues
         from app.models import DealObservation, DiscountEvidence
@@ -71,7 +71,7 @@ class PublishQueueTests(unittest.TestCase):
             db = Database(f"sqlite:///{directory}/q.db")
             db.initialize()
             ids = {}
-            for source in ("mercadolibre", "amazon", "woot", "woot"):
+            for source in ("mercadolibre", "amazon", "woot", "exito"):
                 deal = DealObservation(
                     source=source, external_id=f"{source}{len(ids)}", title="X", price_minor=5000,
                     original_price_minor=10000, evidence=DiscountEvidence.OFFICIAL_ORIGINAL,
@@ -84,4 +84,5 @@ class PublishQueueTests(unittest.TestCase):
             def sources(queues):
                 return {db.get_candidate(q[0]).deal.source for q in queues}
 
-            self.assertEqual(sources(publish_queues(db)), {"mercadolibre", "amazon"})
+            self.assertEqual(sources(publish_queues(db)), {"mercadolibre", "amazon", "exito"})
+            self.assertEqual(sources(publish_queues(db, as_reel=True)), {"mercadolibre", "amazon"})

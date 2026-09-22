@@ -13,6 +13,7 @@ from app.pipeline import OfferPipeline
 from app.publishers.facebook import FacebookPublishError
 from app.sources import AuthenticatedMercadoLibreSource, PartnerFeedSource
 from app.sources.amazon_rss import AmazonRssSource
+from app.sources.colombia_stores import colombia_store_sources
 
 
 def build_runtime(settings: Settings, include_sources: bool = True) -> tuple[Database, OfferPipeline]:
@@ -28,18 +29,21 @@ def build_runtime(settings: Settings, include_sources: bool = True) -> tuple[Dat
         )
     if include_sources:
         sources.append(AmazonRssSource(min_discount_pct=settings.min_discount_pct))
+        sources.extend(colombia_store_sources())
         sources.append(PartnerFeedSource(settings.partner_feed_path))
     return database, OfferPipeline(settings, database, sources)
 
 
-PUBLISH_SOURCES = {"mercadolibre", "amazon"}
+PUBLISH_SOURCES = {"mercadolibre", "amazon", "exito", "alkosto", "ktronix"}
+REEL_SOURCES = {"mercadolibre", "amazon"}
 
 
-def publish_queues(database: Database) -> list[list[str]]:
-    """Approved Mercado Libre / Amazon candidates grouped by source, in round-robin order for this run."""
+def publish_queues(database: Database, as_reel: bool = False) -> list[list[str]]:
+    """Approved candidates grouped by source, in round-robin order for this run."""
+    allowed = REEL_SOURCES if as_reel else PUBLISH_SOURCES
     by_source: dict[str, list[str]] = {}
     for c in database.list_candidates(status="approved"):
-        if c.deal.source in PUBLISH_SOURCES:
+        if c.deal.source in allowed:
             by_source.setdefault(c.deal.source, []).append(c.id)
     # Source published last goes to the back so consecutive runs alternate.
     last = database.last_published_source()
@@ -155,7 +159,7 @@ def main() -> int:
                     print(f"Fuera de horario de publicación ({hour}h Bogotá); solo se escaneó.")
                     return 0
                 as_reel = hour in settings.reel_hours and not database.reel_published_this_hour()
-                queues = publish_queues(database)
+                queues = publish_queues(database, as_reel)
                 published = 0
                 while queues and published < settings.max_posts_per_run:
                     next_queues = []

@@ -5,7 +5,7 @@ from decimal import Decimal
 import hashlib
 from zoneinfo import ZoneInfo
 
-from app.models import DealObservation, DiscountEvidence, from_minor, money
+from app.models import DealObservation, DiscountEvidence, from_minor, money, store_name
 
 
 def _hook(deal: DealObservation) -> str:
@@ -36,6 +36,9 @@ _SOURCE_TAGS = {
     "mercadolibre": "#mercadolibre #cupones",
     "amazon": "#amazon #amazonfinds",
     "woot": "#woot #amazon",
+    "exito": "#exito #almacenesexito",
+    "alkosto": "#alkosto",
+    "ktronix": "#ktronix",
 }
 
 
@@ -50,7 +53,7 @@ def facebook_copy(
     include_affiliate_disclosure: bool = True,
     link_in_comment: bool = False,
 ) -> str:
-    source = deal.source.replace("_", " ").title()
+    source = store_name(deal.source)
     lines = [_hook(deal), "", f"🛍️ {deal.title}", f"🏪 {source}", ""]
     if deal.evidence == DiscountEvidence.OFFICIAL_ORIGINAL and deal.original_price_minor:
         lines.extend(

@@ -12,7 +12,7 @@ import warnings
 import requests
 from PIL import Image, ImageDraw, ImageFont, ImageOps, UnidentifiedImageError
 
-from app.models import DealObservation, DiscountEvidence, from_minor, money, to_minor
+from app.models import DealObservation, DiscountEvidence, from_minor, money, store_name, to_minor
 
 
 CANVAS = (1080, 1080)
@@ -81,7 +81,7 @@ class OfferImageRenderer:
         white = "#FFFFFF"
         muted = "#A9B5C5"
         draw.rounded_rectangle((42, 38, 1038, 136), radius=28, fill="#0E223A")
-        source_display = "MERCADO LIBRE" if deal.source == "mercadolibre" else deal.source.replace("_", " ").upper()
+        source_display = store_name(deal.source).upper()
         src_font = self._fit_font(draw, source_display, 900, 46, 30)
         draw.text((540, 87), source_display, anchor="mm", font=src_font, fill=orange)
 

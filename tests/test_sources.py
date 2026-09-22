@@ -118,3 +118,76 @@ class DealNewsSourceTests(unittest.TestCase):
         self.assertTrue(amazon.affiliate)
         self.assertIn("h=600", amazon.image_url)
         self.assertIsNone(src._parse_item(self._item("Woot! An Amazon Company", "Refurb Bose Speaker for $9")))
+
+
+class _Resp:
+    def __init__(self, payload):
+        self.payload = payload
+
+    def raise_for_status(self):
+        pass
+
+    def json(self):
+        return self.payload
+
+
+class _Session:
+    def __init__(self, payload):
+        self.payload = payload
+        self.headers = {}
+        self.calls = []
+
+    def mount(self, *args):
+        pass
+
+    def get(self, url, **kwargs):
+        self.calls.append(url)
+        return _Resp(self.payload)
+
+    def post(self, url, **kwargs):
+        self.calls.append((url, kwargs))
+        return _Resp(self.payload)
+
+
+def _vtex_product(pid, name, seller_id, price, before):
+    return {
+        "productId": pid, "productName": name, "link": f"https://www.exito.com/{pid}/p",
+        "items": [{"images": [{"imageUrl": f"https://img/{pid}.jpg"}], "sellers": [{
+            "sellerId": seller_id,
+            "commertialOffer": {"Price": price, "ListPrice": before, "IsAvailable": True, "AvailableQuantity": 5},
+        }]}],
+    }
+
+
+class ColombiaStoreTests(unittest.TestCase):
+    def test_exito_keeps_only_own_seller_discounts_and_dedupes_variants(self):
+        from app.sources.colombia_stores import VtexStoreSource
+        payload = [
+            _vtex_product("1", "Freidora MIDEA 4.5 L", "1", 199900, 289900),
+            _vtex_product("2", "Freidora MIDEA 4.5 L", "1", 199900, 289900),  # color variant
+            _vtex_product("3", "Mini Proyector", "16475", 64500, 185400),     # marketplace
+            _vtex_product("4", "Nevera sin descuento", "1", 900000, 900000),
+        ]
+        session = _Session(payload)
+        deals = VtexStoreSource("exito", "https://www.exito.com", session=session, queries=("freidora",)).fetch()
+        self.assertEqual([(d.source, d.title, d.currency) for d in deals], [("exito", "Freidora MIDEA 4.5 L", "COP")])
+        self.assertEqual(deals[0].discount_pct, 31)
+        self.assertIn("/api/catalog_system/pub/products/search?ft=freidora", session.calls[0])
+
+    def test_alkosto_hit_becomes_deal_and_lookup_filters_by_object_id(self):
+        from app.sources.colombia_stores import AlgoliaStoreSource
+        hit = {
+            "objectID": "7705946474559", "name_text_es": "TV KALLEY 60", "instockflag_boolean": True,
+            "discountprice_double": 1699900.0, "baseprice_cop_string": 3899900.0,
+            "url_es_string": "/tv-kalley-60/p/7705946474559", "img-750wx750h_string": "https://cdn/x.webp",
+        }
+        session = _Session({"hits": [hit]})
+        src = AlgoliaStoreSource("alkosto", "alkostoIndexAlgoliaPRD", "https://www.alkosto.com", session=session, queries=("tv",))
+        deal = src.fetch()[0]
+        self.assertEqual(deal.url, "https://www.alkosto.com/tv-kalley-60/p/7705946474559")
+        self.assertEqual(deal.discount_pct, 56)
+        self.assertEqual(src.revalidate(deal).price_minor, deal.price_minor)
+        url, kwargs = session.calls[-1]
+        self.assertIn("/indexes/alkostoIndexAlgoliaPRD/query", url)
+        self.assertIn("objectID", kwargs["json"]["params"])
+        self.assertEqual(kwargs["headers"]["Referer"], "https://www.alkosto.com/")
