@@ -125,8 +125,12 @@ def main() -> int:
                 for _, image, caption in pipeline.dry_run(ids):
                     print(f"\nImagen: {image.resolve()}\n{caption}\n")
             elif args.automatic:
-                for candidate_id in ids[:settings.max_posts_per_run]:
+                # Auto-approve new candidates
+                for candidate_id in ids:
                     database.decide(candidate_id, "approved", actor="system")
+                # Publish from approved backlog (new + previously approved)
+                approved = [c.candidate_id for c in database.list_candidates(status="approved")]
+                for candidate_id in approved[:settings.max_posts_per_run]:
                     try:
                         print(f"Publicada {candidate_id}: {pipeline.publish(candidate_id)}")
                     except Exception as exc:
