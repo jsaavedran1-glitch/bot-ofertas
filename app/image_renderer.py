@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from decimal import Decimal
 from io import BytesIO
 import ipaddress
 from pathlib import Path
@@ -10,7 +11,7 @@ import warnings
 import requests
 from PIL import Image, ImageDraw, ImageFont, ImageOps, UnidentifiedImageError
 
-from app.models import DealObservation, DiscountEvidence, money
+from app.models import DealObservation, DiscountEvidence, from_minor, money, to_minor
 
 
 CANVAS = (1080, 1080)
@@ -43,6 +44,7 @@ class OfferImageRenderer:
         deal: DealObservation,
         candidate_id: str,
         product_image_bytes: bytes | None = None,
+        usd_cop_rate: Decimal | None = None,
     ) -> Path:
         self.output_dir.mkdir(parents=True, exist_ok=True)
         canvas = Image.new("RGB", CANVAS, "#071426")
@@ -97,21 +99,25 @@ class OfferImageRenderer:
         draw.text((680, 390), label, font=self._font(23, bold=True), fill=muted)
         price_font = self._fit_font(draw, money(deal.price_minor, deal.currency), 360, 64, 40)
         draw.text((680, 430), money(deal.price_minor, deal.currency), font=price_font, fill=orange)
+        if deal.currency == "USD" and usd_cop_rate:
+            cop = to_minor(from_minor(deal.price_minor, "USD") * usd_cop_rate, "COP")
+            cop_text = f"≈ {money(cop, 'COP')}"
+            draw.text((680, 508), cop_text, font=self._fit_font(draw, cop_text, 340, 34, 24), fill=white)
 
         if deal.original_price_minor:
             if deal.evidence == DiscountEvidence.OFFICIAL_ORIGINAL:
                 reference_label = "ANTES"
             else:
                 reference_label = "PRECIO TÍPICO OBSERVADO"
-            draw.text((680, 560), reference_label, font=self._font(20, bold=True), fill=muted)
+            draw.text((680, 585), reference_label, font=self._font(20, bold=True), fill=muted)
             reference = money(deal.original_price_minor, deal.currency)
             ref_font = self._fit_font(draw, reference, 360, 38, 28)
-            draw.text((680, 596), reference, font=ref_font, fill="#D3D9E2")
+            draw.text((680, 621), reference, font=ref_font, fill="#D3D9E2")
             if deal.evidence == DiscountEvidence.OFFICIAL_ORIGINAL:
                 ref_w = draw.textlength(reference, font=ref_font)
-                draw.line((680, 618, 680 + ref_w, 618), fill="#FF6B6B", width=4)
+                draw.line((680, 643, 680 + ref_w, 643), fill="#FF6B6B", width=4)
             if ef48:
-                draw.text((625, 556), "💰", font=ef48, embedded_color=True)
+                draw.text((625, 581), "💰", font=ef48, embedded_color=True)
 
         draw.rounded_rectangle((42, 900, 1038, 1038), radius=28, fill="#0E223A")
         if self._logo_footer:

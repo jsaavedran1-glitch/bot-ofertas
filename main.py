@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 from datetime import datetime, timezone
 import sys
+from zoneinfo import ZoneInfo
 
 from app.config import Settings
 from app.database import Database
@@ -130,12 +131,23 @@ def main() -> int:
                 # Auto-approve new candidates
                 for candidate_id in ids:
                     database.decide(candidate_id, "approved", actor="system")
+                expired = database.expire_stale(settings.candidate_max_age_hours)
+                if expired:
+                    print(f"Vencidas: {expired}")
+                hour = datetime.now(ZoneInfo("America/Bogota")).hour
+                if hour not in settings.publish_hours:
+                    print(f"Fuera de horario de publicación ({hour}h Bogotá); solo se escaneó.")
+                    return 0
                 # Publish from approved backlog interleaving sources (round-robin)
                 from collections import defaultdict
                 by_source: dict[str, list[str]] = defaultdict(list)
                 for c in database.list_candidates(status="approved"):
                     by_source[c.deal.source].append(c.id)
-                queues = list(by_source.values())
+                # Source published last goes to the back so consecutive runs alternate.
+                last = database.last_published_source()
+                queues = [q for src, q in by_source.items() if src != last] + (
+                    [by_source[last]] if last in by_source else []
+                )
                 published = 0
                 while queues and published < settings.max_posts_per_run:
                     next_queues = []

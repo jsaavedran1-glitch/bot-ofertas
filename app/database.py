@@ -260,7 +260,32 @@ class Database:
                 deal.image_url, int(deal.affiliate), deal.shipping_note,
                 deal.observed_at.astimezone(timezone.utc).isoformat(), candidate_score, now, now,
             ))
-            return cursor.rowcount == 1
+            if cursor.rowcount == 1:
+                return True
+            # Seen again: keep the pending/approved candidate fresh so it stays publishable.
+            conn.execute(
+                self._sql("UPDATE candidates SET observed_at=?, updated_at=? WHERE id=? AND status IN ('pending','approved')"),
+                (deal.observed_at.astimezone(timezone.utc).isoformat(), now, deal.candidate_id),
+            )
+            return False
+
+    def last_published_source(self) -> str | None:
+        sql = self._sql(
+            "SELECT c.source FROM publications p JOIN candidates c ON c.id=p.candidate_id "
+            "ORDER BY p.published_at DESC LIMIT 1"
+        )
+        with self._connection() as conn:
+            row = self._dict(conn.execute(sql).fetchone())
+        return row["source"] if row else None
+
+    def expire_stale(self, max_age_hours: int) -> int:
+        cutoff = (utc_now() - timedelta(hours=max_age_hours)).isoformat()
+        with self._transaction() as conn:
+            cursor = conn.execute(
+                self._sql("UPDATE candidates SET status='rejected', updated_at=? WHERE status='approved' AND observed_at < ?"),
+                (utc_now().isoformat(), cutoff),
+            )
+            return cursor.rowcount
 
     def _candidate(self, row: Any) -> Candidate | None:
         data = self._dict(row)

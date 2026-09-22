@@ -13,6 +13,17 @@ def _as_bool(value: str | None, default: bool = False) -> bool:
     return value.strip().lower() in {"1", "true", "yes", "si", "sí"}
 
 
+def _parse_hours(value: str) -> frozenset[int]:
+    """'7-9,12-14,19-22' -> {7, 8, 12, 13, 19, 20, 21} (end exclusive). Empty = all day."""
+    hours: set[int] = set()
+    for part in filter(None, (p.strip() for p in value.split(","))):
+        start, _, end = part.partition("-")
+        hours.update(range(int(start), int(end)) if end else {int(start)})
+    if any(h < 0 or h > 23 for h in hours):
+        raise ValueError("PUBLISH_HOURS debe usar horas entre 0 y 23.")
+    return frozenset(hours or range(24))
+
+
 @dataclass(frozen=True)
 class Settings:
     database_url: str
@@ -39,6 +50,8 @@ class Settings:
     meta_graph_api_version: str
     generated_dir: Path
     affiliate_disclosure: bool
+    publish_hours: frozenset[int] = frozenset(range(24))
+    link_in_comment: bool = False
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -80,4 +93,6 @@ class Settings:
             meta_graph_api_version=os.getenv("META_GRAPH_API_VERSION", "v26.0").strip(),
             generated_dir=Path(os.getenv("GENERATED_DIR", "generated")),
             affiliate_disclosure=_as_bool(os.getenv("AFFILIATE_DISCLOSURE"), True),
+            publish_hours=_parse_hours(os.getenv("PUBLISH_HOURS", "")),
+            link_in_comment=_as_bool(os.getenv("LINK_IN_COMMENT"), False),
         )

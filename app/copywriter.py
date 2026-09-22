@@ -21,14 +21,34 @@ def _hook(deal: DealObservation) -> str:
         f"💰 Ahorra {saved} en este {title}" if saved else f"💰 {title} a precio increíble",
         f"🏷️ Oferta verificada: {title} con {pct}% de descuento",
     ]
-    idx = int(hashlib.md5(deal.external_id.encode()).hexdigest(), 16) % len(hooks)
-    return hooks[idx]
+    return _pick(deal, hooks)
+
+
+_QUESTIONS = [
+    "¿Lo comprarías a este precio? 🤔",
+    "¿Qué te parece este descuento? Cuéntanos 👇",
+    "¿Lo necesitas o ya tienes uno? 👀",
+    "¿Crees que es buen precio? 💬",
+    "¿Qué producto quieres que busquemos en oferta? 🔎",
+]
+
+_SOURCE_TAGS = {
+    "mercadolibre": "#mercadolibre #cupones",
+    "amazon": "#amazon #amazonfinds",
+    "woot": "#woot #amazon",
+}
+
+
+def _pick(deal: DealObservation, options: list[str], salt: str = "") -> str:
+    idx = int(hashlib.md5((salt + deal.external_id).encode()).hexdigest(), 16) % len(options)
+    return options[idx]
 
 
 def facebook_copy(
     deal: DealObservation,
     usd_cop_rate: Decimal | None,
     include_affiliate_disclosure: bool = True,
+    link_in_comment: bool = False,
 ) -> str:
     source = deal.source.replace("_", " ").title()
     lines = [_hook(deal), "", f"🛍️ {deal.title}", f"🏪 {source}", ""]
@@ -55,13 +75,15 @@ def facebook_copy(
         lines.append(f"≈ ${cop:,.0f} COP".replace(",", "."))
     if deal.shipping_note:
         lines.append(f"🚚 {deal.shipping_note}")
-    lines.extend(["", f"👉 {deal.url}", ""])
+    link_line = "👇 Link de la oferta en el primer comentario" if link_in_comment else f"👉 {deal.url}"
+    lines.extend(["", link_line, ""])
     local_time = deal.observed_at.astimezone(ZoneInfo("America/Bogota"))
     lines.append(f"Verificado el {local_time.strftime('%d/%m/%Y a las %H:%M')}. Precio sujeto a cambios.")
     if deal.currency == "USD":
         lines.append("El valor en COP es aproximado; envío e impuestos se confirman en la tienda.")
     if deal.affiliate and include_affiliate_disclosure:
         lines.append("Enlace afiliado: podemos recibir una comisión sin costo adicional para ti.")
-    lines.append("")
-    lines.append("#OjoAlPrecio #descuentos #ofertas #cupones #mercadolibre #tecnologia #Colombia")
+    lines.extend(["", _pick(deal, _QUESTIONS, salt="q"), ""])
+    source_tags = _SOURCE_TAGS.get(deal.source, "")
+    lines.append(f"#OjoAlPrecio #descuentos #ofertas {source_tags} #tecnologia #Colombia".replace("  ", " "))
     return "\n".join(lines)

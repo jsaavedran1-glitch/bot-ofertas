@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import timedelta
 from pathlib import Path
+import sys
 
 from app.config import Settings
 from app.copywriter import facebook_copy
@@ -79,9 +80,11 @@ class OfferPipeline:
         return report
 
     def render(self, candidate: Candidate) -> tuple[Path, str]:
-        image = self.renderer.render(candidate.deal, candidate.id)
         rate = self.rate_provider.usd_to_cop()
-        caption = facebook_copy(candidate.deal, rate, self.settings.affiliate_disclosure)
+        image = self.renderer.render(candidate.deal, candidate.id, usd_cop_rate=rate)
+        caption = facebook_copy(
+            candidate.deal, rate, self.settings.affiliate_disclosure, self.settings.link_in_comment
+        )
         return image, caption
 
     def publish(self, candidate_id: str, publisher: FacebookPublisher | None = None) -> str:
@@ -125,6 +128,11 @@ class OfferPipeline:
             self.database.record_publish_error(candidate_id, "Fallo local antes de publicar.", False)
             raise
         self.database.record_publication(candidate_id, post_id)
+        if self.settings.link_in_comment:
+            try:
+                publisher.comment(post_id, f"👉 Aquí la oferta: {candidate.deal.url}")
+            except FacebookPublishError as exc:
+                print(f"Advertencia {candidate_id}: {exc}", file=sys.stderr)
         return post_id
 
     def _revalidate(self, candidate: Candidate):

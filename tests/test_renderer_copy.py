@@ -46,3 +46,37 @@ class RendererTests(unittest.TestCase):
             currency="USD", url="https://example.com/sku", affiliate=False,
         )
         self.assertNotIn("Enlace afiliado", facebook_copy(deal, None, True))
+
+
+class CopyAndConfigTests(unittest.TestCase):
+    def test_caption_moves_link_to_comment_and_tags_by_source(self):
+        deal = DealObservation(
+            source="woot", external_id="W1", title="Parlante", price_minor=9000,
+            original_price_minor=15900, evidence=DiscountEvidence.OFFICIAL_ORIGINAL,
+            currency="USD", url="https://example.com/w1",
+        )
+        self.assertIn("https://example.com/w1", facebook_copy(deal, None, True))
+        text = facebook_copy(deal, None, True, link_in_comment=True)
+        self.assertNotIn("https://example.com/w1", text)
+        self.assertIn("primer comentario", text)
+        self.assertIn("#woot", text)
+        self.assertNotIn("#mercadolibre", text)
+        self.assertIn("?", text.split("#OjoAlPrecio")[0].strip().splitlines()[-1])
+
+    def test_usd_image_renders_with_cop_rate(self):
+        from decimal import Decimal
+        with tempfile.TemporaryDirectory() as directory:
+            deal = DealObservation(
+                source="amazon", external_id="A1", title="Mouse", price_minor=1400,
+                original_price_minor=2800, evidence=DiscountEvidence.OFFICIAL_ORIGINAL,
+                currency="USD", url="https://example.com/a1",
+            )
+            path = OfferImageRenderer(Path(directory)).render(deal, "a1", b"x", usd_cop_rate=Decimal("4000"))
+            self.assertTrue(path.is_file())
+
+    def test_publish_hours_parsing(self):
+        from app.config import _parse_hours
+        self.assertEqual(_parse_hours("7-9,12-14,19-22"), frozenset({7, 8, 12, 13, 19, 20, 21}))
+        self.assertEqual(_parse_hours(""), frozenset(range(24)))
+        with self.assertRaises(ValueError):
+            _parse_hours("20-25")

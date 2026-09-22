@@ -23,9 +23,12 @@ class RecordingSession:
     def __init__(self, failure=None):
         self.failure = failure
         self.call = None
+        self.calls = []
 
     def post(self, url, **kwargs):
-        self.call = (url, kwargs)
+        if self.call is None:
+            self.call = (url, kwargs)
+        self.calls.append((url, kwargs))
         if self.failure:
             raise self.failure
         return FakeMetaResponse()
@@ -78,7 +81,9 @@ class PublisherPipelineTests(unittest.TestCase):
             self.pipeline.publish(self.deal.candidate_id)
 
     def test_mock_publish_uses_multipart_and_records_id(self):
+        from dataclasses import replace
         self.db.decide(self.deal.candidate_id, "approved")
+        self.pipeline.settings = replace(self.settings, link_in_comment=True)
         session = RecordingSession()
         publisher = FacebookPublisher("page", "secret-token", "v26.0", session)
         post_id = self.pipeline.publish(self.deal.candidate_id, publisher)
@@ -87,6 +92,25 @@ class PublisherPipelineTests(unittest.TestCase):
         self.assertIn("source", session.call[1]["files"])
         self.assertIn("caption", session.call[1]["data"])
         self.assertEqual(self.db.get_candidate(self.deal.candidate_id).status, "published")
+        self.assertNotIn("example.com/P", session.call[1]["data"]["caption"])
+        comment_url, comment = session.calls[1]
+        self.assertIn("/v26.0/page_456/comments", comment_url)
+        self.assertIn("https://example.com/P", comment["data"]["message"])
+        self.assertEqual(self.db.last_published_source(), "test")
+
+    def test_reseen_candidate_is_refreshed_and_stale_ones_expire(self):
+        from dataclasses import replace
+        from datetime import timedelta
+        from app.models import utc_now
+        self.db.decide(self.deal.candidate_id, "approved")
+        old = replace(self.deal, observed_at=utc_now() - timedelta(hours=10))
+        other = replace(old, external_id="Q")
+        self.db.create_candidate(other, 40)
+        self.db.decide(other.candidate_id, "approved")
+        self.assertFalse(self.db.create_candidate(replace(self.deal, observed_at=utc_now()), 40))
+        self.assertEqual(self.db.expire_stale(6), 1)
+        self.assertEqual(self.db.get_candidate(other.candidate_id).status, "rejected")
+        self.assertEqual(self.db.get_candidate(self.deal.candidate_id).status, "approved")
 
     def test_timeout_is_ambiguous_and_not_retried(self):
         self.db.decide(self.deal.candidate_id, "approved")

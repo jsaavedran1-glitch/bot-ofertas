@@ -67,3 +67,17 @@ class FacebookPublisher:
         if not post_id:
             raise FacebookPublishError("Meta respondió sin identificador de publicación.", ambiguous=True)
         return str(post_id)
+
+    def comment(self, post_id: str, message: str) -> None:
+        url = f"https://graph.facebook.com/{self.api_version}/{post_id}/comments"
+        try:
+            response = self.session.post(
+                url,
+                headers={"Authorization": f"Bearer {self.page_token}"},
+                data={"message": message},
+                timeout=(8, 30),
+            )
+        except requests.RequestException as exc:
+            raise FacebookPublishError("No se pudo publicar el comentario con el enlace.") from exc
+        if not response.ok:
+            raise FacebookPublishError(f"Meta rechazó el comentario (HTTP {response.status_code}).")
