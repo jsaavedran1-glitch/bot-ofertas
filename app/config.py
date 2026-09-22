@@ -20,6 +20,7 @@ class Settings:
     min_discount_pct: int
     min_savings_cop: int
     max_posts_per_day: int
+    max_posts_per_run: int
     candidate_max_age_hours: int
     repost_cooldown_days: int
     history_min_observations: int
@@ -60,6 +61,7 @@ class Settings:
             min_discount_pct=int(os.getenv("MIN_DISCOUNT_PCT", "20")),
             min_savings_cop=int(os.getenv("MIN_SAVINGS_COP", "20000")),
             max_posts_per_day=int(os.getenv("MAX_POSTS_PER_DAY", "5")),
+            max_posts_per_run=int(os.getenv("MAX_POSTS_PER_RUN", "1")),
             candidate_max_age_hours=int(os.getenv("CANDIDATE_MAX_AGE_HOURS", "6")),
             repost_cooldown_days=int(os.getenv("REPOST_COOLDOWN_DAYS", "7")),
             history_min_observations=int(os.getenv("HISTORY_MIN_OBSERVATIONS", "3")),

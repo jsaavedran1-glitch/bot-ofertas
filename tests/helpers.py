@@ -13,6 +13,7 @@ def settings_for(directory: str) -> Settings:
         min_discount_pct=20,
         min_savings_cop=20_000,
         max_posts_per_day=2,
+        max_posts_per_run=1,
         candidate_max_age_hours=6,
         repost_cooldown_days=7,
         history_min_observations=3,

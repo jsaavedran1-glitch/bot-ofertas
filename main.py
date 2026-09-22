@@ -125,7 +125,7 @@ def main() -> int:
                 for _, image, caption in pipeline.dry_run(ids):
                     print(f"\nImagen: {image.resolve()}\n{caption}\n")
             elif args.automatic:
-                for candidate_id in ids:
+                for candidate_id in ids[:settings.max_posts_per_run]:
                     database.decide(candidate_id, "approved", actor="system")
                     try:
                         print(f"Publicada {candidate_id}: {pipeline.publish(candidate_id)}")
