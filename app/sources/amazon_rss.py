@@ -4,6 +4,7 @@ import re
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
 from html import unescape
+from urllib.parse import urlencode
 
 import requests
 from requests.adapters import HTTPAdapter
@@ -13,7 +14,8 @@ from app.models import DealObservation, DiscountEvidence, to_minor
 from app.sources.base import DealSource, SourceError
 
 # Amazon removed public RSS feeds; using DealNews as a deal aggregator for Amazon/Woot items.
-# ponytail: no affiliate tag until PA-API is available (needs 10 qualifying sales first)
+# ponytail: Amazon deals link to an affiliate-tagged search (no ASIN in the feed); switch to /dp/ASIN once PA-API is available.
+AFFILIATE_TAG = "ojoalprecio10-20"
 
 _FEEDS = [
     "https://www.dealnews.com/c142/Electronics/?rss=1",
@@ -139,6 +141,12 @@ class AmazonRssSource(DealSource):
         clean_title = re.sub(r"\s+for\s+\$[\d,.]+.*$", "", title, flags=re.IGNORECASE).strip() or title
         clean_title = re.sub(r"\s*\(.*?\)\s*$", "", clean_title).strip() or title
 
+        is_amazon = source_name == "amazon"
+        url = (
+            "https://www.amazon.com/s?" + urlencode({"k": clean_title, "tag": AFFILIATE_TAG})
+            if is_amazon else link
+        )
+
         return DealObservation(
             source=source_name,
             external_id=external_id,
@@ -147,12 +155,12 @@ class AmazonRssSource(DealSource):
             original_price_minor=orig_minor,
             evidence=DiscountEvidence.OFFICIAL_ORIGINAL,
             currency="USD",
-            url=link,
+            url=url,
             image_url=img_url,
             available=True,
             shipping_note="Ver condiciones de envío en la tienda",
             observed_at=datetime.now(timezone.utc),
-            affiliate=False,
+            affiliate=is_amazon,
         )
 
     def revalidate(self, deal: DealObservation) -> DealObservation | None:

@@ -82,7 +82,10 @@ def facebook_copy(
     if deal.currency == "USD":
         lines.append("El valor en COP es aproximado; envío e impuestos se confirman en la tienda.")
     if deal.affiliate and include_affiliate_disclosure:
-        lines.append("Enlace afiliado: podemos recibir una comisión sin costo adicional para ti.")
+        if deal.source == "amazon":
+            lines.append("Como Asociado de Amazon, ganamos con las compras que cumplen los requisitos.")
+        else:
+            lines.append("Enlace afiliado: podemos recibir una comisión sin costo adicional para ti.")
     lines.extend(["", _pick(deal, _QUESTIONS, salt="q"), ""])
     source_tags = _SOURCE_TAGS.get(deal.source, "")
     lines.append(f"#OjoAlPrecio #descuentos #ofertas {source_tags} #tecnologia #Colombia".replace("  ", " "))

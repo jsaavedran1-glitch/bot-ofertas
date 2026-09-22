@@ -80,3 +80,14 @@ class CopyAndConfigTests(unittest.TestCase):
         self.assertEqual(_parse_hours(""), frozenset(range(24)))
         with self.assertRaises(ValueError):
             _parse_hours("20-25")
+
+
+class EmojiTests(unittest.TestCase):
+    def test_emoji_is_drawn_when_a_color_emoji_font_exists(self):
+        from app.image_renderer import _emoji_font
+        if _emoji_font() is None:
+            self.skipTest("sin fuente de emojis en este sistema")
+        canvas = Image.new("RGB", (80, 80), "black")
+        OfferImageRenderer._paste_emoji(canvas, (10, 10), "🔥", 48)
+        colors = {canvas.getpixel((x, y)) for x in range(10, 58, 4) for y in range(10, 58, 4)}
+        self.assertGreater(len(colors), 3)

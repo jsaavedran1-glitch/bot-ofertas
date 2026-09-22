@@ -264,8 +264,12 @@ class Database:
                 return True
             # Seen again: keep the pending/approved candidate fresh so it stays publishable.
             conn.execute(
-                self._sql("UPDATE candidates SET observed_at=?, updated_at=? WHERE id=? AND status IN ('pending','approved')"),
-                (deal.observed_at.astimezone(timezone.utc).isoformat(), now, deal.candidate_id),
+                self._sql(
+                    "UPDATE candidates SET observed_at=?, url=?, image_url=?, affiliate=?, updated_at=?"
+                    " WHERE id=? AND status IN ('pending','approved')"
+                ),
+                (deal.observed_at.astimezone(timezone.utc).isoformat(), deal.url, deal.image_url,
+                 int(deal.affiliate), now, deal.candidate_id),
             )
             return False
 

@@ -94,3 +94,30 @@ class SourceTests(unittest.TestCase):
             deal = PartnerFeedSource(str(path)).fetch()[0]
             self.assertEqual(deal.evidence, DiscountEvidence.NONE)
             self.assertIsNone(deal.original_price_minor)
+
+
+class DealNewsSourceTests(unittest.TestCase):
+    def _item(self, retailer, title):
+        import xml.etree.ElementTree as ET
+        return ET.fromstring(f"""<item xmlns:dealnews="https://www.dealnews.com/ns/rss/1.0.htm"
+            xmlns:media="http://search.yahoo.com/mrss/">
+          <title>{title}</title>
+          <link>https://www.dealnews.com/Some-Deal/22206491.html?iref=rss</link>
+          <description>Now $9, down from $21.99.</description>
+          <dealnews:retailer>{retailer}</dealnews:retailer>
+          <media:content url="https://d.dlnws.com/1/x.jpg?h=125&amp;w=103"/>
+        </item>""")
+
+    def test_amazon_deal_gets_tagged_search_link_and_woot_keeps_dealnews(self):
+        from app.sources.amazon_rss import AmazonRssSource
+        src = AmazonRssSource()
+        amazon = src._parse_item(self._item("Amazon", "Granicell AA Batteries 16-Pack for $9"))
+        self.assertTrue(amazon.url.startswith("https://www.amazon.com/s?"))
+        self.assertIn("tag=ojoalprecio10-20", amazon.url)
+        self.assertIn("Granicell", amazon.url)
+        self.assertTrue(amazon.affiliate)
+        self.assertIn("h=600", amazon.image_url)
+        woot = src._parse_item(self._item("Woot! An Amazon Company", "Refurb Bose Speaker for $9"))
+        self.assertEqual(woot.source, "woot")
+        self.assertIn("dealnews.com", woot.url)
+        self.assertFalse(woot.affiliate)

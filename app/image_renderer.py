@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from decimal import Decimal
+from functools import lru_cache
 from io import BytesIO
 import ipaddress
 from pathlib import Path
@@ -25,6 +26,23 @@ _ICON_PATH = Path(__file__).parent.parent / "assets" / "icon.png"
 
 class MissingProductImage(ValueError):
     pass
+
+
+# Color emoji fonts only ship fixed bitmap sizes: Apple 160px (macOS), Noto 109px (Linux/GitHub Actions).
+_EMOJI_FONTS = (
+    ("/System/Library/Fonts/Apple Color Emoji.ttc", 160),
+    ("/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf", 109),
+)
+
+
+@lru_cache(maxsize=1)
+def _emoji_font() -> ImageFont.FreeTypeFont | None:
+    for path, size in _EMOJI_FONTS:
+        try:
+            return ImageFont.truetype(path, size)
+        except OSError:
+            continue
+    return None
 
 
 class OfferImageRenderer:
@@ -95,12 +113,8 @@ class OfferImageRenderer:
         draw.text((809, 237), badge, anchor="mm", font=self._font(64, bold=True), fill="#071426")
 
         # Emoji overlays
-        ef64 = self._emoji_font(64)
-        ef48 = self._emoji_font(48)
-        if ef64:
-            draw.text((1000, 181), "🔥", font=ef64, embedded_color=True)
-        if ef48:
-            draw.text((625, 340), "⚡", font=ef48, embedded_color=True)
+        self._paste_emoji(canvas, (1000, 190), "🔥", 60)
+        self._paste_emoji(canvas, (628, 345), "⚡", 44)
 
         in_cop = deal.currency == "USD" and bool(usd_cop_rate)
 
@@ -130,8 +144,7 @@ class OfferImageRenderer:
             if deal.evidence == DiscountEvidence.OFFICIAL_ORIGINAL:
                 ref_w = draw.textlength(reference, font=ref_font)
                 draw.line((680, 643, 680 + ref_w, 643), fill="#FF6B6B", width=4)
-            if ef48:
-                draw.text((625, 581), "💰", font=ef48, embedded_color=True)
+            self._paste_emoji(canvas, (628, 586), "💰", 44)
 
         if product is not None:
             self._draw_follow_cta(canvas, draw, (625, 690, 1038, 872), compact=True)
@@ -150,8 +163,7 @@ class OfferImageRenderer:
         for line in tag_lines:
             draw.text((txt_x, ty), line, font=tag_font, fill=muted)
             ty += tag_font.size + 4
-        if ef48:
-            draw.text((1000, 945), "🔥", font=ef48, embedded_color=True)
+        self._paste_emoji(canvas, (1000, 948), "🔥", 44)
 
         output = self.output_dir / f"{candidate_id}.png"
         temporary = self.output_dir / f".{candidate_id}.tmp.png"
@@ -223,16 +235,19 @@ class OfferImageRenderer:
         except (UnidentifiedImageError, OSError, ValueError, Image.DecompressionBombWarning, Image.DecompressionBombError):
             return None
 
-    _EMOJI_SIZES = (160, 96, 64, 48, 40, 32, 20)
-    _EMOJI_FONT_PATH = "/System/Library/Fonts/Apple Color Emoji.ttc"
-
-    @classmethod
-    def _emoji_font(cls, size: int) -> ImageFont.FreeTypeFont | None:
-        best = min(cls._EMOJI_SIZES, key=lambda s: abs(s - size))
-        try:
-            return ImageFont.truetype(cls._EMOJI_FONT_PATH, best)
-        except OSError:
-            return None
+    @staticmethod
+    def _paste_emoji(canvas: Image.Image, xy: tuple[int, int], char: str, size: int) -> None:
+        font = _emoji_font()
+        if font is None:
+            return
+        glyph = Image.new("RGBA", (font.size * 2, font.size * 2), (0, 0, 0, 0))
+        ImageDraw.Draw(glyph).text((0, 0), char, font=font, embedded_color=True)
+        bbox = glyph.getbbox()
+        if not bbox:
+            return
+        glyph = glyph.crop(bbox)
+        glyph.thumbnail((size, size), Image.Resampling.LANCZOS)
+        canvas.paste(glyph, xy, glyph)
 
     @staticmethod
     def _font(size: int, bold: bool = False) -> ImageFont.FreeTypeFont:
