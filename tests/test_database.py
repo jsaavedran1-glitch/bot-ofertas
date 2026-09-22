@@ -60,3 +60,33 @@ class DatabaseTests(unittest.TestCase):
         self.db.record_publish_error(deal.candidate_id, "fallo", ambiguous=False)
         self.assertEqual(self.db.get_candidate(deal.candidate_id).status, "failed")
         self.assertTrue(self.db.decide(deal.candidate_id, "approved"))
+
+
+class PublishQueueTests(unittest.TestCase):
+    def test_woot_once_a_day_and_reels_only_ml_and_amazon(self):
+        import tempfile
+        from main import publish_queues
+        from app.models import DealObservation, DiscountEvidence
+        with tempfile.TemporaryDirectory() as directory:
+            db = Database(f"sqlite:///{directory}/q.db")
+            db.initialize()
+            ids = {}
+            for source in ("mercadolibre", "amazon", "woot", "woot"):
+                deal = DealObservation(
+                    source=source, external_id=f"{source}{len(ids)}", title="X", price_minor=5000,
+                    original_price_minor=10000, evidence=DiscountEvidence.OFFICIAL_ORIGINAL,
+                    currency="USD", url="https://example.com", image_url="https://example.com/i.png",
+                )
+                db.create_candidate(deal, 50)
+                db.decide(deal.candidate_id, "approved")
+                ids.setdefault(source, []).append(deal.candidate_id)
+
+            def sources(queues):
+                return {db.get_candidate(q[0]).deal.source for q in queues}
+
+            self.assertEqual(sources(publish_queues(db, as_reel=False)), {"mercadolibre", "amazon", "woot"})
+            self.assertEqual(sources(publish_queues(db, as_reel=True)), {"mercadolibre", "amazon"})
+            woot = ids["woot"][0]
+            db.reserve_for_publish(woot, 15)
+            db.record_publication(woot, "post_1")
+            self.assertEqual(sources(publish_queues(db, as_reel=False)), {"mercadolibre", "amazon"})
