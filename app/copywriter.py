@@ -2,9 +2,27 @@ from __future__ import annotations
 
 from datetime import datetime
 from decimal import Decimal
+import hashlib
 from zoneinfo import ZoneInfo
 
 from app.models import DealObservation, DiscountEvidence, from_minor, money
+
+
+def _hook(deal: DealObservation) -> str:
+    title = deal.title
+    price = money(deal.price_minor, deal.currency)
+    orig = money(deal.original_price_minor, deal.currency) if deal.original_price_minor else ""
+    pct = deal.discount_pct
+    saved = money(deal.original_price_minor - deal.price_minor, deal.currency) if deal.original_price_minor else ""
+    hooks = [
+        f"🔥 ¡Bajó de precio! {title} ahora por {price}",
+        f"🚨 Alerta de oferta: {title} con {pct}% menos",
+        f"💥 De {orig} a solo {price}" if orig else f"💥 {title} ahora por {price}",
+        f"💰 Ahorra {saved} en este {title}" if saved else f"💰 {title} a precio increíble",
+        f"🏷️ Oferta verificada: {title} con {pct}% de descuento",
+    ]
+    idx = int(hashlib.md5(deal.external_id.encode()).hexdigest(), 16) % len(hooks)
+    return hooks[idx]
 
 
 def facebook_copy(
@@ -13,7 +31,7 @@ def facebook_copy(
     include_affiliate_disclosure: bool = True,
 ) -> str:
     source = deal.source.replace("_", " ").title()
-    lines = ["🔥 OFERTA VERIFICADA", "", f"🛍️ {deal.title}", f"🏪 {source}", ""]
+    lines = [_hook(deal), "", f"🛍️ {deal.title}", f"🏪 {source}", ""]
     if deal.evidence == DiscountEvidence.OFFICIAL_ORIGINAL and deal.original_price_minor:
         lines.extend(
             [
