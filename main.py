@@ -129,7 +129,7 @@ def main() -> int:
                 for candidate_id in ids:
                     database.decide(candidate_id, "approved", actor="system")
                 # Publish from approved backlog (new + previously approved)
-                approved = [c.candidate_id for c in database.list_candidates(status="approved")]
+                approved = [c.id for c in database.list_candidates(status="approved")]
                 for candidate_id in approved[:settings.max_posts_per_run]:
                     try:
                         print(f"Publicada {candidate_id}: {pipeline.publish(candidate_id)}")
