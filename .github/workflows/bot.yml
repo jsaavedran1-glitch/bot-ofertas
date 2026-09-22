@@ -1,0 +1,48 @@
+name: Ojo al Precio - detector de ofertas
+
+on:
+  schedule:
+    - cron: "0 * * * *"
+  workflow_dispatch:
+
+jobs:
+  run-bot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Instalar dependencias
+        run: pip install -r requirements.txt
+
+      - name: Restaurar BD
+        uses: actions/cache@v4
+        with:
+          path: ofertas.db
+          key: ofertas-db-${{ github.run_number }}
+          restore-keys: ofertas-db-
+
+      - name: Renovar token MercadoLibre
+        env:
+          ML_CLIENT_ID: ${{ secrets.ML_CLIENT_ID }}
+          ML_CLIENT_SECRET: ${{ secrets.ML_CLIENT_SECRET }}
+        run: python refresh_ml_token.py
+
+      - name: Correr bot
+        env:
+          ML_CLIENT_ID: ${{ secrets.ML_CLIENT_ID }}
+          ML_CLIENT_SECRET: ${{ secrets.ML_CLIENT_SECRET }}
+          ML_ACCESS_TOKEN: ${{ secrets.ML_ACCESS_TOKEN }}
+          FB_APP_ID: ${{ secrets.FB_APP_ID }}
+          FB_APP_SECRET: ${{ secrets.FB_APP_SECRET }}
+          FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
+          FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
+          MIN_DISCOUNT_PCT: "20"
+          POST_MODE: "auto"
+          MAX_POSTS_PER_DAY: "8"
+          REPOST_COOLDOWN_DAYS: "7"
+        run: python main.py --post
