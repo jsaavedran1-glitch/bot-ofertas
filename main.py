@@ -32,20 +32,15 @@ def build_runtime(settings: Settings, include_sources: bool = True) -> tuple[Dat
     return database, OfferPipeline(settings, database, sources)
 
 
-REEL_SOURCES = {"mercadolibre", "amazon"}
-DAILY_CAP_BY_SOURCE = {"woot": 1}
+PUBLISH_SOURCES = {"mercadolibre", "amazon"}
 
 
-def publish_queues(database: Database, as_reel: bool) -> list[list[str]]:
-    """Approved candidates grouped by source, in round-robin order for this run."""
+def publish_queues(database: Database) -> list[list[str]]:
+    """Approved Mercado Libre / Amazon candidates grouped by source, in round-robin order for this run."""
     by_source: dict[str, list[str]] = {}
     for c in database.list_candidates(status="approved"):
-        by_source.setdefault(c.deal.source, []).append(c.id)
-    for source, cap in DAILY_CAP_BY_SOURCE.items():
-        if source in by_source and database.published_today(source) >= cap:
-            del by_source[source]
-    if as_reel:
-        by_source = {s: q for s, q in by_source.items() if s in REEL_SOURCES}
+        if c.deal.source in PUBLISH_SOURCES:
+            by_source.setdefault(c.deal.source, []).append(c.id)
     # Source published last goes to the back so consecutive runs alternate.
     last = database.last_published_source()
     return [q for s, q in by_source.items() if s != last] + ([by_source[last]] if last in by_source else [])
@@ -160,7 +155,7 @@ def main() -> int:
                     print(f"Fuera de horario de publicación ({hour}h Bogotá); solo se escaneó.")
                     return 0
                 as_reel = hour in settings.reel_hours and not database.reel_published_this_hour()
-                queues = publish_queues(database, as_reel)
+                queues = publish_queues(database)
                 published = 0
                 while queues and published < settings.max_posts_per_run:
                     next_queues = []

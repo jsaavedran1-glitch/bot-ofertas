@@ -282,15 +282,6 @@ class Database:
             row = self._dict(conn.execute(sql).fetchone())
         return row["source"] if row else None
 
-    def published_today(self, source: str) -> int:
-        local_day = utc_now().astimezone(ZoneInfo("America/Bogota")).date().isoformat()
-        sql = self._sql(
-            "SELECT COUNT(*) AS total FROM publications p JOIN candidates c ON c.id=p.candidate_id"
-            " WHERE c.source=? AND p.local_day=?"
-        )
-        with self._connection() as conn:
-            return int(conn.execute(sql, (source, local_day)).fetchone()["total"])
-
     def reel_published_this_hour(self) -> bool:
         local = utc_now().astimezone(ZoneInfo("America/Bogota"))
         hour_start = local.replace(minute=0, second=0, microsecond=0).astimezone(timezone.utc).isoformat()

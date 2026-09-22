@@ -13,7 +13,7 @@ from urllib3.util.retry import Retry
 from app.models import DealObservation, DiscountEvidence, to_minor
 from app.sources.base import DealSource, SourceError
 
-# Amazon removed public RSS feeds; using DealNews as a deal aggregator for Amazon/Woot items.
+# Amazon removed public RSS feeds; using DealNews as a deal aggregator for Amazon items.
 # ponytail: Amazon deals link to an affiliate-tagged search (no ASIN in the feed); switch to /dp/ASIN once PA-API is available.
 AFFILIATE_TAG = "ojoalprecio10-20"
 
@@ -24,11 +24,7 @@ _FEEDS = [
     "https://www.dealnews.com/c202/Clothing-Accessories/?rss=1",
 ]
 
-_RETAILER_SOURCE = {
-    "amazon": "amazon",
-    "woot": "woot",
-    "woot! an amazon company": "woot",
-}
+_RETAILER_SOURCE = {"amazon": "amazon"}
 
 _PRICE_RE = re.compile(r"\$([\d,]+\.?\d*)")
 _PCT_RE = re.compile(r"(\d+)%\s*off", re.IGNORECASE)
@@ -45,10 +41,10 @@ def _extract_prices(text: str) -> tuple[float | None, float | None]:
 
 
 class AmazonRssSource(DealSource):
-    """Deal source backed by DealNews RSS filtered to Amazon/Woot retailer items."""
+    """Deal source backed by DealNews RSS filtered to Amazon retailer items."""
 
     source_name = "amazon"
-    source_names = {"amazon", "woot"}
+    source_names = {"amazon"}
 
     def __init__(self, min_discount_pct: int = 20, session: requests.Session | None = None) -> None:
         self.min_discount_pct = min_discount_pct

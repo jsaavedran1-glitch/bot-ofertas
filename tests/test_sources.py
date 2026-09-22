@@ -108,7 +108,7 @@ class DealNewsSourceTests(unittest.TestCase):
           <media:content url="https://d.dlnws.com/1/x.jpg?h=125&amp;w=103"/>
         </item>""")
 
-    def test_amazon_deal_gets_tagged_search_link_and_woot_keeps_dealnews(self):
+    def test_amazon_deal_gets_tagged_search_link_and_woot_is_ignored(self):
         from app.sources.amazon_rss import AmazonRssSource
         src = AmazonRssSource()
         amazon = src._parse_item(self._item("Amazon", "Granicell AA Batteries 16-Pack for $9"))
@@ -117,7 +117,4 @@ class DealNewsSourceTests(unittest.TestCase):
         self.assertIn("Granicell", amazon.url)
         self.assertTrue(amazon.affiliate)
         self.assertIn("h=600", amazon.image_url)
-        woot = src._parse_item(self._item("Woot! An Amazon Company", "Refurb Bose Speaker for $9"))
-        self.assertEqual(woot.source, "woot")
-        self.assertIn("dealnews.com", woot.url)
-        self.assertFalse(woot.affiliate)
+        self.assertIsNone(src._parse_item(self._item("Woot! An Amazon Company", "Refurb Bose Speaker for $9")))

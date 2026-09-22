@@ -63,7 +63,7 @@ class DatabaseTests(unittest.TestCase):
 
 
 class PublishQueueTests(unittest.TestCase):
-    def test_woot_once_a_day_and_reels_only_ml_and_amazon(self):
+    def test_only_mercadolibre_and_amazon_are_published(self):
         import tempfile
         from main import publish_queues
         from app.models import DealObservation, DiscountEvidence
@@ -84,9 +84,4 @@ class PublishQueueTests(unittest.TestCase):
             def sources(queues):
                 return {db.get_candidate(q[0]).deal.source for q in queues}
 
-            self.assertEqual(sources(publish_queues(db, as_reel=False)), {"mercadolibre", "amazon", "woot"})
-            self.assertEqual(sources(publish_queues(db, as_reel=True)), {"mercadolibre", "amazon"})
-            woot = ids["woot"][0]
-            db.reserve_for_publish(woot, 15)
-            db.record_publication(woot, "post_1")
-            self.assertEqual(sources(publish_queues(db, as_reel=False)), {"mercadolibre", "amazon"})
+            self.assertEqual(sources(publish_queues(db)), {"mercadolibre", "amazon"})
