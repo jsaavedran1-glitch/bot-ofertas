@@ -28,6 +28,9 @@ class MercadoLibreTokenManager:
 
     def access_token(self) -> str:
         if not self.settings.ml_refresh_token:
+            # Try client_credentials if we have app credentials
+            if self.settings.ml_client_id and self.settings.ml_client_secret:
+                return self._client_credentials()
             if self.settings.ml_access_token:
                 return self.settings.ml_access_token
             raise MercadoLibreAuthError("Faltan ML_ACCESS_TOKEN y ML_REFRESH_TOKEN.")
@@ -80,6 +83,26 @@ class MercadoLibreTokenManager:
 
         state = self.database.rotate_integration_credentials("mercadolibre", rotate)
         return state["access_token"]
+
+    def _client_credentials(self) -> str:
+        try:
+            response = self.session.post(
+                self.TOKEN_URL,
+                data={
+                    "grant_type": "client_credentials",
+                    "client_id": self.settings.ml_client_id,
+                    "client_secret": self.settings.ml_client_secret,
+                },
+                headers={"Accept": "application/json", "Content-Type": "application/x-www-form-urlencoded"},
+                timeout=(5, 20),
+            )
+            response.raise_for_status()
+            token = response.json().get("access_token", "")
+            if not token:
+                raise MercadoLibreAuthError("Mercado Libre no devolvió access_token en client_credentials.")
+            return token
+        except requests.RequestException as exc:
+            raise MercadoLibreAuthError("No se pudo obtener token via client_credentials.") from exc
 
     def _refresh(self, refresh_token: str) -> dict:
         for attempt in range(3):
