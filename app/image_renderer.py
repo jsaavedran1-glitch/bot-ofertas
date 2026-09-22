@@ -75,7 +75,7 @@ class OfferImageRenderer:
         img_area_top = title_bottom
         img_center_y = img_area_top + (864 - img_area_top) // 2
         if product is None:
-            self._draw_placeholder(draw, (70, img_area_top + 20, 554, 854))
+            self._draw_follow_cta(canvas, draw, (70, img_area_top + 20, 554, 854))
         else:
             product = ImageOps.contain(product, (470, 864 - img_area_top - 20), Image.Resampling.LANCZOS)
             x = 312 - product.width // 2
@@ -265,9 +265,48 @@ class OfferImageRenderer:
             lines[-1] = lines[-1][: max(1, len(lines[-1]) - 1)] + "…"
         return font, lines
 
-    def _draw_placeholder(self, draw: ImageDraw.ImageDraw, box: tuple[int, int, int, int]) -> None:
+    def _draw_follow_cta(self, canvas: Image.Image, draw: ImageDraw.ImageDraw, box: tuple[int, int, int, int]) -> None:
         x1, y1, x2, y2 = box
-        draw.rounded_rectangle(box, radius=34, fill="#EDF1F6")
-        draw.arc((x1 + 115, y1 + 70, x2 - 115, y2 - 95), 200, 340, fill="#94A3B8", width=16)
-        draw.rounded_rectangle((x1 + 130, y1 + 180, x2 - 130, y2 - 105), radius=24, outline="#94A3B8", width=14)
-        draw.text(((x1 + x2) // 2, y2 - 63), "IMAGEN NO DISPONIBLE", anchor="mm", font=self._font(17, bold=True), fill="#64748B")
+        cx, width = (x1 + x2) // 2, x2 - x1 - 50
+        orange, white, muted = "#FFB11B", "#FFFFFF", "#A9B5C5"
+        draw.rounded_rectangle(box, radius=34, fill="#0E223A")
+
+        icon_size = max(60, min(140, (y2 - y1) // 4))
+        try:
+            icon = Image.open(_ICON_PATH).convert("RGBA")
+            icon.thumbnail((icon_size, icon_size), Image.Resampling.LANCZOS)
+        except (OSError, UnidentifiedImageError):
+            icon = None
+
+        head_font, head = self._fit_lines(draw, "¡NO TE PIERDAS NINGUNA OFERTA!", width, max_lines=2, start=40, minimum=26)
+        body_font, body = self._fit_lines(draw, "Sigue la página y activa las notificaciones", width, max_lines=2, start=24, minimum=18)
+        button_text = "SEGUIR OJO AL PRECIO"
+        button_font = self._fit_font(draw, button_text, width - 60, 24, 16)
+        foot_font, foot = self._fit_lines(draw, "¿Te sirvió? ¡Reacciona y compártela!", width, max_lines=2, start=20, minimum=16)
+
+        gap = 18
+        button_h = button_font.size + 30
+        blocks = [
+            (icon.height if icon else 0),
+            len(head) * (head_font.size + 6),
+            len(body) * (body_font.size + 6),
+            button_h,
+            len(foot) * (foot_font.size + 4),
+        ]
+        y = y1 + max(16, ((y2 - y1) - sum(blocks) - gap * (len(blocks) - 1)) // 2)
+
+        if icon:
+            canvas.paste(icon, (cx - icon.width // 2, y), icon)
+            y += icon.height + gap
+        for lines, font, fill, step in ((head, head_font, orange, 6), (body, body_font, white, 6)):
+            for line in lines:
+                draw.text((cx, y), line, anchor="mt", font=font, fill=fill)
+                y += font.size + step
+            y += gap
+        bw = draw.textlength(button_text, font=button_font) + 60
+        draw.rounded_rectangle((cx - bw / 2, y, cx + bw / 2, y + button_h), radius=button_h // 2, fill=orange)
+        draw.text((cx, y + button_h / 2), button_text, anchor="mm", font=button_font, fill="#071426")
+        y += button_h + gap
+        for line in foot:
+            draw.text((cx, y), line, anchor="mt", font=foot_font, fill=muted)
+            y += foot_font.size + 4

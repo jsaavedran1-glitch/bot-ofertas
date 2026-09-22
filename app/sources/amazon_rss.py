@@ -133,6 +133,8 @@ class AmazonRssSource(DealSource):
             img_url = media.get("url", "")
             if img_url:
                 break
+        if "dlnws.com" in img_url:
+            img_url = img_url.split("?", 1)[0] + "?h=600&w=600"  # feed ships 103x125 thumbnails
 
         clean_title = re.sub(r"\s+for\s+\$[\d,.]+.*$", "", title, flags=re.IGNORECASE).strip() or title
         clean_title = re.sub(r"\s*\(.*?\)\s*$", "", clean_title).strip() or title
