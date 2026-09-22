@@ -115,3 +115,14 @@ class ReelRenderTests(unittest.TestCase):
             ).stdout.split()
             self.assertEqual(info[0], "1080,1920")
             self.assertAlmostEqual(float(info[1]), 9.0, delta=0.2)
+
+
+class PromoStoryTests(unittest.TestCase):
+    def test_square_image_becomes_vertical_story(self):
+        from app.reel_renderer import ReelRenderer
+        with tempfile.TemporaryDirectory() as directory:
+            square = Path(directory) / "promo.png"
+            Image.new("RGB", (1080, 1080), "white").save(square)
+            path = ReelRenderer(Path(directory)).render_story_from_image(square, "s", "PROMO DEL DÍA: LG")
+            with Image.open(path) as img:
+                self.assertEqual(img.size, (1080, 1920))

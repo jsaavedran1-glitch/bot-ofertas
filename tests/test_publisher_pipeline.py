@@ -311,3 +311,25 @@ class StoryTests(unittest.TestCase):
         self.assertEqual(post_id, "page_456")
         self.assertEqual(len(session.calls), 1)
         self.assertEqual(self.db.get_candidate(self.deal.candidate_id).status, "published")
+
+
+class VideoStoryTests(unittest.TestCase):
+    setUp = PublisherPipelineTests.setUp
+    tearDown = PublisherPipelineTests.tearDown
+
+    def test_reel_is_mirrored_as_video_story(self):
+        from dataclasses import replace
+        self.db.decide(self.deal.candidate_id, "approved")
+        self.pipeline.settings = replace(self.settings, stories=True)
+        self.pipeline.reel_renderer = FakeReelRenderer(self.temp.name)
+        session = ReelSession()
+        self.pipeline.publish(self.deal.candidate_id, FacebookPublisher("page", "t", "v26.0", session), as_reel=True)
+        urls = [u for u, _ in session.calls]
+        self.assertEqual(sum(u.endswith("/page/video_reels") for u in urls), 2)   # reel start + finish
+        self.assertEqual(sum(u.endswith("/page/video_stories") for u in urls), 2)  # story start + finish
+        self.assertEqual(sum("rupload.facebook.com" in u for u in urls), 2)
+
+    def test_minutes_since_last_post(self):
+        self.assertIsNone(self.db.minutes_since_last_post())
+        self.db.record_promo("alkosto:lg", "post_9")
+        self.assertLess(self.db.minutes_since_last_post(), 1)

@@ -91,6 +91,26 @@ class ReelRenderer(OfferImageRenderer):
         frame.save(output, format="PNG", optimize=True)
         return output
 
+    def render_story_from_image(self, image_path: Path, name: str, headline: str) -> Path:
+        """Wrap a square post image (e.g. the promo grid) in a 9:16 story frame."""
+        frame = Image.new("RGB", (W, H), NAVY)
+        draw = ImageDraw.Draw(frame)
+        for y in range(H):
+            r = y / H
+            draw.line((0, y, W, y), fill=(7 + int(8 * r), 20 + int(18 * r), 38 + int(26 * r)))
+        draw.text((W // 2, 330), headline, anchor="mm", font=self._fit_font(draw, headline, 980, 64, 36), fill=ORANGE)
+        with Image.open(image_path) as square:
+            post = square.convert("RGB").resize((1020, 1020), Image.Resampling.LANCZOS)
+        frame.paste(post, (30, 450))
+        text, font = "Mira la promo completa en nuestra página", self._font(36, bold=True)
+        x = W // 2 + 30 - int(draw.textlength(text, font=font)) // 2
+        draw.text((x, 1600), text, anchor="lm", font=font, fill=WHITE)
+        self._paste_emoji(frame, (x - 64, 1576), "👀", 48)
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+        output = self.output_dir / f"{name}.png"
+        frame.save(output, format="PNG", optimize=True)
+        return output
+
     def _prepare(self, deal, usd_cop_rate, product_image_bytes, link_in_comment):
         product = self._load_product_image(product_image_bytes or self._download(deal.image_url))
         if product is None:

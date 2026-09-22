@@ -73,6 +73,14 @@ def publish_promo(settings: Settings, database: Database, pipeline: OfferPipelin
             publisher.comment(post_id, promo_links(promo))
         except FacebookPublishError as exc:
             print(f"Advertencia promo: {exc}", file=sys.stderr)
+    if settings.stories:
+        try:
+            story = pipeline.reel_renderer.render_story_from_image(
+                image, f"story_{image.stem}", "¡NO TE LO PIERDAS!"
+            )
+            publisher.publish_story(story)
+        except (FacebookPublishError, OSError) as exc:
+            print(f"Advertencia historia promo: {exc}", file=sys.stderr)
     print(f"Promo del día publicada ({promo.key}, {len(promo.deals)} productos): {post_id}")
     return True
 
@@ -184,6 +192,10 @@ def main() -> int:
                 hour = datetime.now(ZoneInfo("America/Bogota")).hour
                 if hour not in settings.publish_hours:
                     print(f"Fuera de horario de publicación ({hour}h Bogotá); solo se escaneó.")
+                    return 0
+                since = database.minutes_since_last_post()
+                if since is not None and since < settings.min_minutes_between_posts:
+                    print(f"Última publicación hace {since:.0f} min; se espera al menos {settings.min_minutes_between_posts}.")
                     return 0
                 if hour in settings.promo_hours and not database.promo_published_today():
                     try:

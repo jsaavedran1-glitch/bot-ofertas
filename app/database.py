@@ -288,6 +288,16 @@ class Database:
             row = conn.execute(self._sql("SELECT COUNT(*) AS total FROM publications WHERE local_day=?"), (local_day,)).fetchone()
         return int(row["total"])
 
+    def minutes_since_last_post(self) -> float | None:
+        sql = "SELECT MAX(published_at) AS last FROM (SELECT published_at FROM publications UNION ALL SELECT published_at FROM promo_publications) AS posts"
+        with self._connection() as conn:
+            last = conn.execute(sql).fetchone()["last"]
+        if last is None:
+            return None
+        if isinstance(last, str):
+            last = datetime.fromisoformat(last.replace("Z", "+00:00"))
+        return (utc_now() - last).total_seconds() / 60
+
     def promo_published_today(self) -> bool:
         local_day = utc_now().astimezone(ZoneInfo("America/Bogota")).date().isoformat()
         with self._connection() as conn:

@@ -83,31 +83,40 @@ class FacebookPublisher:
             raise FacebookPublishError(f"Meta rechazó el comentario (HTTP {response.status_code}).")
 
     def publish_reel(self, video_path: Path, description: str) -> str:
-        if not video_path.is_file():
-            raise FacebookPublishError("No existe el video que se intentó publicar.")
-        endpoint = f"https://graph.facebook.com/{self.api_version}/{self.page_id}/video_reels"
-        auth = {"Authorization": f"Bearer {self.page_token}"}
-        started = self._call(endpoint, headers=auth, data={"upload_phase": "start"})
-        video_id = str(started.get("video_id") or "")
-        if not video_id:
-            raise FacebookPublishError("Meta no devolvió video_id al iniciar el reel.")
-        size = video_path.stat().st_size
-        self._call(
-            f"https://rupload.facebook.com/video-upload/{self.api_version}/{video_id}",
-            headers={"Authorization": f"OAuth {self.page_token}", "offset": "0", "file_size": str(size)},
-            data=video_path.read_bytes(),
-            timeout=(8, 120),
-        )
-        # Only the finish call can leave a published reel behind, so only it is ambiguous on timeout.
-        finished = self._call(
-            endpoint,
-            headers=auth,
-            data={"upload_phase": "finish", "video_id": video_id, "video_state": "PUBLISHED", "description": description},
-            ambiguous=True,
+        video_id, finished = self._upload_video(
+            "video_reels", video_path, {"video_state": "PUBLISHED", "description": description}
         )
         if not finished.get("success"):
             raise FacebookPublishError("Meta no confirmó la publicación del reel.", ambiguous=True)
         return video_id
+
+    def publish_video_story(self, video_path: Path) -> str:
+        video_id, finished = self._upload_video("video_stories", video_path, {})
+        if not finished.get("success"):
+            raise FacebookPublishError("Meta no confirmó la historia de video.", ambiguous=True)
+        return str(finished.get("post_id") or video_id)
+
+    def _upload_video(self, edge: str, video_path: Path, finish_data: dict) -> tuple[str, dict]:
+        """Resumable upload shared by reels and video stories: start -> rupload -> finish."""
+        if not video_path.is_file():
+            raise FacebookPublishError("No existe el video que se intentó publicar.")
+        endpoint = f"https://graph.facebook.com/{self.api_version}/{self.page_id}/{edge}"
+        auth = {"Authorization": f"Bearer {self.page_token}"}
+        started = self._call(endpoint, headers=auth, data={"upload_phase": "start"})
+        video_id = str(started.get("video_id") or "")
+        if not video_id:
+            raise FacebookPublishError("Meta no devolvió video_id al iniciar la subida del video.")
+        self._call(
+            f"https://rupload.facebook.com/video-upload/{self.api_version}/{video_id}",
+            headers={"Authorization": f"OAuth {self.page_token}", "offset": "0", "file_size": str(video_path.stat().st_size)},
+            data=video_path.read_bytes(),
+            timeout=(8, 120),
+        )
+        # Only the finish call can leave a published video behind, so only it is ambiguous on timeout.
+        finished = self._call(
+            endpoint, headers=auth, data={"upload_phase": "finish", "video_id": video_id, **finish_data}, ambiguous=True,
+        )
+        return video_id, finished
 
     def _call(self, url: str, headers: dict, data, timeout=(8, 45), ambiguous: bool = False) -> dict:
         try:

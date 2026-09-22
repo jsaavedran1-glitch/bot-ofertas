@@ -55,6 +55,7 @@ class Settings:
     reel_hours: frozenset[int] = frozenset()
     stories: bool = False
     promo_hours: frozenset[int] = frozenset()
+    min_minutes_between_posts: int = 0
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -101,4 +102,5 @@ class Settings:
             reel_hours=frozenset(int(h) for h in os.getenv("REEL_HOURS", "").split(",") if h.strip()),
             stories=_as_bool(os.getenv("STORIES"), False),
             promo_hours=frozenset(int(h) for h in os.getenv("PROMO_HOURS", "").split(",") if h.strip()),
+            min_minutes_between_posts=int(os.getenv("MIN_MINUTES_BETWEEN_POSTS", "0")),
         )
