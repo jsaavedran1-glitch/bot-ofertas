@@ -2,47 +2,76 @@ name: Ojo al Precio - detector de ofertas
 
 on:
   schedule:
-    - cron: "0 * * * *"
+    - cron: "0,30 * * * *"
+      timezone: "America/Bogota"
   workflow_dispatch:
+    inputs:
+      mode:
+        description: "Modo de ejecución"
+        required: true
+        default: "dry-run"
+        type: choice
+        options:
+          - dry-run
+          - review
+          - automatic
+
+permissions:
+  contents: read
+
+concurrency:
+  group: facebook-deals-publisher
+  cancel-in-progress: false
 
 jobs:
   run-bot:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      ML_CLIENT_ID: ${{ secrets.ML_CLIENT_ID }}
+      ML_CLIENT_SECRET: ${{ secrets.ML_CLIENT_SECRET }}
+      ML_ACCESS_TOKEN: ${{ secrets.ML_ACCESS_TOKEN }}
+      ML_REFRESH_TOKEN: ${{ secrets.ML_REFRESH_TOKEN }}
+      TOKEN_ENCRYPTION_KEY: ${{ secrets.TOKEN_ENCRYPTION_KEY }}
+      FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
+      FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
+      META_GRAPH_API_VERSION: "v26.0"
+      POST_MODE: "automatic"
+      MIN_DISCOUNT_PCT: "20"
+      MIN_SAVINGS_COP: "20000"
+      MAX_POSTS_PER_DAY: "5"
+      REPOST_COOLDOWN_DAYS: "7"
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
           cache: pip
 
       - name: Instalar dependencias
-        run: pip install -r requirements.txt
+        run: pip install --requirement requirements.txt
 
-      - name: Restaurar BD
-        uses: actions/cache@v4
-        with:
-          path: ofertas.db
-          key: ofertas-db-${{ github.run_number }}
-          restore-keys: ofertas-db-
+      - name: Ejecutar pruebas
+        run: python -m unittest discover -s tests -v
 
-      - name: Renovar token MercadoLibre
+      - name: Validar base persistente
+        shell: bash
+        run: |
+          if [[ "$DATABASE_URL" != postgresql://* && "$DATABASE_URL" != postgres://* ]]; then
+            echo "DATABASE_URL debe apuntar a PostgreSQL/Supabase en GitHub Actions"
+            exit 1
+          fi
+
+      - name: Ejecutar bot
+        shell: bash
         env:
-          ML_CLIENT_ID: ${{ secrets.ML_CLIENT_ID }}
-          ML_CLIENT_SECRET: ${{ secrets.ML_CLIENT_SECRET }}
-        run: python refresh_ml_token.py
-
-      - name: Correr bot
-        env:
-          ML_CLIENT_ID: ${{ secrets.ML_CLIENT_ID }}
-          ML_CLIENT_SECRET: ${{ secrets.ML_CLIENT_SECRET }}
-          ML_ACCESS_TOKEN: ${{ secrets.ML_ACCESS_TOKEN }}
-          FB_APP_ID: ${{ secrets.FB_APP_ID }}
-          FB_APP_SECRET: ${{ secrets.FB_APP_SECRET }}
-          FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
-          FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
-          MIN_DISCOUNT_PCT: "20"
-          POST_MODE: "auto"
-          MAX_POSTS_PER_DAY: "8"
-          REPOST_COOLDOWN_DAYS: "7"
-        run: python main.py --post
+          REQUESTED_MODE: ${{ github.event.inputs.mode || vars.POST_MODE || 'review' }}
+        run: |
+          case "$REQUESTED_MODE" in
+            automatic) python main.py run --automatic ;;
+            dry-run)   python main.py run --dry-run ;;
+            review)    python main.py scan ;;
+            *) echo "Modo no válido: $REQUESTED_MODE"; exit 2 ;;
+          esac
