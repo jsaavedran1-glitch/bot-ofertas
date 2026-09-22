@@ -95,14 +95,21 @@ class OfferImageRenderer:
         if ef48:
             draw.text((625, 340), "⚡", font=ef48, embedded_color=True)
 
+        in_cop = deal.currency == "USD" and bool(usd_cop_rate)
+
+        def shown(minor: int) -> str:
+            if in_cop:
+                return money(to_minor(from_minor(minor, "USD") * usd_cop_rate, "COP"), "COP")
+            return money(minor, deal.currency)
+
         label = "PRECIO ACTUAL"
         draw.text((680, 390), label, font=self._font(23, bold=True), fill=muted)
-        price_font = self._fit_font(draw, money(deal.price_minor, deal.currency), 360, 64, 40)
-        draw.text((680, 430), money(deal.price_minor, deal.currency), font=price_font, fill=orange)
-        if deal.currency == "USD" and usd_cop_rate:
-            cop = to_minor(from_minor(deal.price_minor, "USD") * usd_cop_rate, "COP")
-            cop_text = f"≈ {money(cop, 'COP')}"
-            draw.text((680, 508), cop_text, font=self._fit_font(draw, cop_text, 340, 34, 24), fill=white)
+        price_text = shown(deal.price_minor)
+        price_font = self._fit_font(draw, price_text, 330, 64, 40)
+        draw.text((680, 430), price_text, font=price_font, fill=orange)
+        if in_cop:
+            usd_text = f"{money(deal.price_minor, 'USD')} · valor aprox. en COP"
+            draw.text((680, 508), usd_text, font=self._fit_font(draw, usd_text, 340, 24, 18), fill=muted)
 
         if deal.original_price_minor:
             if deal.evidence == DiscountEvidence.OFFICIAL_ORIGINAL:
@@ -110,7 +117,7 @@ class OfferImageRenderer:
             else:
                 reference_label = "PRECIO TÍPICO OBSERVADO"
             draw.text((680, 585), reference_label, font=self._font(20, bold=True), fill=muted)
-            reference = money(deal.original_price_minor, deal.currency)
+            reference = shown(deal.original_price_minor)
             ref_font = self._fit_font(draw, reference, 360, 38, 28)
             draw.text((680, 621), reference, font=ref_font, fill="#D3D9E2")
             if deal.evidence == DiscountEvidence.OFFICIAL_ORIGINAL:
