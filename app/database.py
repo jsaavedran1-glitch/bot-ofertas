@@ -168,6 +168,15 @@ class Database:
               updated_at {timestamp_type} NOT NULL
             )
             """,
+            f"""
+            CREATE TABLE IF NOT EXISTS promo_publications (
+              id {identity},
+              promo_key TEXT NOT NULL,
+              external_post_id TEXT NOT NULL,
+              published_at {timestamp_type} NOT NULL,
+              local_day TEXT NOT NULL
+            )
+            """,
             "CREATE INDEX IF NOT EXISTS idx_candidates_status ON candidates(status, score)",
             "CREATE INDEX IF NOT EXISTS idx_observations_item ON price_observations(source, external_id, observed_at)",
             "CREATE INDEX IF NOT EXISTS idx_publications_day ON publications(platform, local_day)",
@@ -278,6 +287,25 @@ class Database:
         with self._connection() as conn:
             row = conn.execute(self._sql("SELECT COUNT(*) AS total FROM publications WHERE local_day=?"), (local_day,)).fetchone()
         return int(row["total"])
+
+    def promo_published_today(self) -> bool:
+        local_day = utc_now().astimezone(ZoneInfo("America/Bogota")).date().isoformat()
+        with self._connection() as conn:
+            return conn.execute(self._sql("SELECT 1 FROM promo_publications WHERE local_day=? LIMIT 1"), (local_day,)).fetchone() is not None
+
+    def promo_posted_within(self, promo_key: str, days: int) -> bool:
+        since = (utc_now() - timedelta(days=days)).isoformat()
+        sql = self._sql("SELECT 1 FROM promo_publications WHERE promo_key=? AND published_at>=? LIMIT 1")
+        with self._connection() as conn:
+            return conn.execute(sql, (promo_key, since)).fetchone() is not None
+
+    def record_promo(self, promo_key: str, external_post_id: str) -> None:
+        now = utc_now()
+        with self._transaction() as conn:
+            conn.execute(
+                self._sql("INSERT INTO promo_publications(promo_key, external_post_id, published_at, local_day) VALUES(?, ?, ?, ?)"),
+                (promo_key, external_post_id, now.isoformat(), now.astimezone(ZoneInfo("America/Bogota")).date().isoformat()),
+            )
 
     def reel_published_this_hour(self) -> bool:
         local = utc_now().astimezone(ZoneInfo("America/Bogota"))

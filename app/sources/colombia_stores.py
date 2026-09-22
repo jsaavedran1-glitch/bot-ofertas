@@ -56,7 +56,7 @@ class _StoreSource(DealSource):
         errors = 0
         for query in self.queries:
             try:
-                found = self._search(query)
+                found = self.search(query)
             except (requests.RequestException, ValueError, KeyError, TypeError):
                 errors += 1
                 continue
@@ -74,7 +74,7 @@ class _StoreSource(DealSource):
         except (requests.RequestException, ValueError, KeyError, TypeError):
             return None
 
-    def _search(self, query: str) -> list[DealObservation]:
+    def search(self, query: str) -> list[DealObservation]:
         raise NotImplementedError
 
     def _lookup(self, external_id: str) -> DealObservation | None:
@@ -110,7 +110,7 @@ class VtexStoreSource(_StoreSource):
             product.get("link", ""), images[0].get("imageUrl", ""),
         )
 
-    def _search(self, query: str) -> list[DealObservation]:
+    def search(self, query: str) -> list[DealObservation]:
         products = self._get(urlencode({"ft": query, "_from": 0, "_to": self.per_query - 1}))
         return [d for p in products if (d := self._parse(p))]
 
@@ -156,7 +156,7 @@ class AlgoliaStoreSource(_StoreSource):
             f"{self.base_url}{path}" if path else "", hit.get("img-750wx750h_string", ""),
         )
 
-    def _search(self, query: str) -> list[DealObservation]:
+    def search(self, query: str) -> list[DealObservation]:
         return [d for h in self._query({"query": query, "hitsPerPage": self.per_query}) if (d := self._parse(h))]
 
     def _lookup(self, external_id: str) -> DealObservation | None:

@@ -54,6 +54,7 @@ class Settings:
     link_in_comment: bool = False
     reel_hours: frozenset[int] = frozenset()
     stories: bool = False
+    promo_hours: frozenset[int] = frozenset()
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -99,4 +100,5 @@ class Settings:
             link_in_comment=_as_bool(os.getenv("LINK_IN_COMMENT"), False),
             reel_hours=frozenset(int(h) for h in os.getenv("REEL_HOURS", "").split(",") if h.strip()),
             stories=_as_bool(os.getenv("STORIES"), False),
+            promo_hours=frozenset(int(h) for h in os.getenv("PROMO_HOURS", "").split(",") if h.strip()),
         )

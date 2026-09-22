@@ -10,10 +10,11 @@ from app.database import Database
 from app.ml_auth import MercadoLibreAuthError, MercadoLibreTokenManager
 from app.models import DealObservation, DiscountEvidence, to_minor
 from app.pipeline import OfferPipeline
-from app.publishers.facebook import FacebookPublishError
+from app.publishers.facebook import FacebookPublisher, FacebookPublishError
 from app.sources import AuthenticatedMercadoLibreSource, PartnerFeedSource
 from app.sources.amazon_rss import AmazonRssSource
 from app.sources.colombia_stores import colombia_store_sources
+from app.promos import PROMO_STORES, PromoRenderer, find_promo, promo_copy
 
 
 def build_runtime(settings: Settings, include_sources: bool = True) -> tuple[Database, OfferPipeline]:
@@ -54,6 +55,21 @@ def publish_queues(database: Database, as_reel: bool = False) -> list[list[str]]
         if source in by_source and source not in order and (not as_reel or source in REEL_SOURCES):
             order.append(source)
     return [by_source[s] for s in order]
+
+
+def publish_promo(settings: Settings, database: Database, pipeline: OfferPipeline) -> bool:
+    """Post today's brand promo if one qualifies. Returns True when something was published."""
+    sources = {s.source_name: s for s in pipeline.sources if s.source_name in PROMO_STORES}
+    promo = find_promo(sources, database.promo_posted_within, datetime.now(ZoneInfo("America/Bogota")).toordinal())
+    if promo is None:
+        print("Promo del día: ninguna marca con suficientes ofertas.")
+        return False
+    image = PromoRenderer(settings.generated_dir).render_promo(promo, f"promo_{promo.key.replace(':', '_')}")
+    publisher = FacebookPublisher(settings.fb_page_id, settings.fb_page_token, settings.meta_graph_api_version)
+    post_id = publisher.publish_photo(image, promo_copy(promo))
+    database.record_promo(promo.key, post_id)
+    print(f"Promo del día publicada ({promo.key}, {len(promo.deals)} productos): {post_id}")
+    return True
 
 
 def show_candidates(database: Database, status: str) -> None:
@@ -164,6 +180,12 @@ def main() -> int:
                 if hour not in settings.publish_hours:
                     print(f"Fuera de horario de publicación ({hour}h Bogotá); solo se escaneó.")
                     return 0
+                if hour in settings.promo_hours and not database.promo_published_today():
+                    try:
+                        if publish_promo(settings, database, pipeline):
+                            return 0
+                    except (FacebookPublishError, OSError) as exc:
+                        print(f"Falló la promo del día: {exc}", file=sys.stderr)
                 as_reel = hour in settings.reel_hours and not database.reel_published_this_hour()
                 queues = publish_queues(database, as_reel)
                 published = 0
