@@ -84,7 +84,11 @@ def find_promo(sources: dict, recently_posted, day_index: int) -> Promo | None:
     return None
 
 
-def promo_copy(promo: Promo, now: datetime | None = None) -> str:
+def promo_links(promo: Promo) -> str:
+    return "\n".join(f"{n} {d.url}" for n, d in zip(NUMBERS, promo.deals))
+
+
+def promo_copy(promo: Promo, now: datetime | None = None, link_in_comment: bool = False) -> str:
     local = (now or datetime.now(ZoneInfo("America/Bogota"))).astimezone(ZoneInfo("America/Bogota"))
     store = store_name(promo.store)
     lines = [f"🔥 Promo del día en {store}: {promo.brand} hasta -{promo.max_pct}%", ""]
@@ -92,9 +96,10 @@ def promo_copy(promo: Promo, now: datetime | None = None) -> str:
         lines += [
             f"{n} {d.title}",
             f"   💥 {money(d.price_minor, 'COP')} (antes {money(d.original_price_minor, 'COP')}, -{d.discount_pct}%)",
-            f"   👉 {d.url}",
-            "",
         ]
+        lines += [""] if link_in_comment else [f"   👉 {d.url}", ""]
+    if link_in_comment:
+        lines += ["👇 Links de cada producto en el primer comentario", ""]
     lines += [
         f"Verificado el {local:%d/%m/%Y a las %H:%M}. Precios sujetos a cambios y disponibilidad en {store}.",
         "",

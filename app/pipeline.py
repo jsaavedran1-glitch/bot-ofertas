@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from datetime import timedelta
 from pathlib import Path
 import sys
+import time
 
 from app.config import Settings
 from app.copywriter import facebook_copy
@@ -153,10 +154,17 @@ class OfferPipeline:
             except (FacebookPublishError, MissingProductImage, OSError) as exc:
                 print(f"Advertencia historia {candidate_id}: {exc}", file=sys.stderr)
         if self.settings.link_in_comment:
-            try:
-                publisher.comment(post_id, f"👉 Aquí la oferta: {candidate.deal.url}")
-            except FacebookPublishError as exc:
-                print(f"Advertencia {candidate_id}: {exc}", file=sys.stderr)
+            # Reels are still processing right after upload and may reject comments for a few seconds.
+            attempts = 4 if as_reel else 1
+            for attempt in range(attempts):
+                try:
+                    publisher.comment(post_id, f"👉 Aquí la oferta: {candidate.deal.url}")
+                    break
+                except FacebookPublishError as exc:
+                    if attempt == attempts - 1:
+                        print(f"Advertencia {candidate_id}: {exc}", file=sys.stderr)
+                    else:
+                        time.sleep(15)
         return post_id
 
     def _revalidate(self, candidate: Candidate):

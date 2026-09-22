@@ -14,7 +14,7 @@ from app.publishers.facebook import FacebookPublisher, FacebookPublishError
 from app.sources import AuthenticatedMercadoLibreSource, PartnerFeedSource
 from app.sources.amazon_rss import AmazonRssSource
 from app.sources.colombia_stores import colombia_store_sources
-from app.promos import PROMO_STORES, PromoRenderer, find_promo, promo_copy
+from app.promos import PROMO_STORES, PromoRenderer, find_promo, promo_copy, promo_links
 
 
 def build_runtime(settings: Settings, include_sources: bool = True) -> tuple[Database, OfferPipeline]:
@@ -66,8 +66,13 @@ def publish_promo(settings: Settings, database: Database, pipeline: OfferPipelin
         return False
     image = PromoRenderer(settings.generated_dir).render_promo(promo, f"promo_{promo.key.replace(':', '_')}")
     publisher = FacebookPublisher(settings.fb_page_id, settings.fb_page_token, settings.meta_graph_api_version)
-    post_id = publisher.publish_photo(image, promo_copy(promo))
+    post_id = publisher.publish_photo(image, promo_copy(promo, link_in_comment=settings.link_in_comment))
     database.record_promo(promo.key, post_id)
+    if settings.link_in_comment:
+        try:
+            publisher.comment(post_id, promo_links(promo))
+        except FacebookPublishError as exc:
+            print(f"Advertencia promo: {exc}", file=sys.stderr)
     print(f"Promo del día publicada ({promo.key}, {len(promo.deals)} productos): {post_id}")
     return True
 

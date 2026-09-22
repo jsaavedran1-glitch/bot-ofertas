@@ -7,7 +7,7 @@ from PIL import Image
 
 from app.database import Database
 from app.models import DealObservation, DiscountEvidence
-from app.promos import BRANDS, PromoRenderer, find_promo, promo_copy
+from app.promos import BRANDS, PromoRenderer, find_promo, promo_copy, promo_links
 
 
 def _deal(title, price, before, n):
@@ -64,6 +64,10 @@ class PromoTests(unittest.TestCase):
         for d in promo.deals:
             self.assertIn(d.url, text)
         self.assertIn("#alkosto #electrolux", text)
+        in_comment = promo_copy(promo, link_in_comment=True)
+        self.assertNotIn("https://", in_comment)
+        self.assertIn("primer comentario", in_comment)
+        self.assertEqual(promo_links(promo).count("https://www.alkosto.com/p/"), len(promo.deals))
 
     def test_render_is_1080_square_png(self):
         buffer = BytesIO()
