@@ -44,4 +44,6 @@ def facebook_copy(
         lines.append("El valor en COP es aproximado; envío e impuestos se confirman en la tienda.")
     if deal.affiliate and include_affiliate_disclosure:
         lines.append("Enlace afiliado: podemos recibir una comisión sin costo adicional para ti.")
+    lines.append("")
+    lines.append("#OjoAlPrecio #descuentos #ofertas #cupones #mercadolibre #tecnologia #Colombia")
     return "\n".join(lines)
