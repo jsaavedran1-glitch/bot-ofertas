@@ -37,7 +37,7 @@ jobs:
       FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
       FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
       META_GRAPH_API_VERSION: "v26.0"
-      POST_MODE: "automatic"
+      POST_MODE: "review"
       MIN_DISCOUNT_PCT: "20"
       MIN_SAVINGS_COP: "20000"
       MAX_POSTS_PER_DAY: "5"
@@ -67,7 +67,7 @@ jobs:
       - name: Ejecutar bot
         shell: bash
         env:
-          REQUESTED_MODE: ${{ github.event.inputs.mode || vars.POST_MODE || 'review' }}
+          REQUESTED_MODE: ${{ github.event_name == 'schedule' && 'automatic' || github.event.inputs.mode || 'review' }}
         run: |
           case "$REQUESTED_MODE" in
             automatic) python main.py run --automatic ;;
