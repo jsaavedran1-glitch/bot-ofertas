@@ -17,11 +17,16 @@ from app.sources.base import DealSource, SourceError
 # ponytail: Amazon deals link to an affiliate-tagged search (no ASIN in the feed); switch to /dp/ASIN once PA-API is available.
 AFFILIATE_TAG = "ojoalprecio10-20"
 
+_GAMING = re.compile(
+    r"xbox|playstation|ps5|ps4|dualsense|nintendo|switch|steam deck|gaming|gamer|console|controller|headset|joystick",
+    re.IGNORECASE,
+)
+# (feed, title filter): Amazon deals limited to shoes, video games and gaming gear from Electronics.
 _FEEDS = [
-    "https://www.dealnews.com/c142/Electronics/?rss=1",
-    "https://www.dealnews.com/c39/Computers/?rss=1",
-    "https://www.dealnews.com/c166/Video-Games/?rss=1",
-    "https://www.dealnews.com/c202/Clothing-Accessories/?rss=1",
+    ("https://www.dealnews.com/c280/Clothing-Accessories/Shoes/?rss=1", None),
+    ("https://www.dealnews.com/c191/Gaming-Toys/Video-Games/?rss=1", None),
+    ("https://www.dealnews.com/c186/Gaming-Toys/?rss=1", _GAMING),
+    ("https://www.dealnews.com/c142/Electronics/?rss=1", _GAMING),
 ]
 
 _RETAILER_SOURCE = {"amazon": "amazon"}
@@ -59,7 +64,7 @@ class AmazonRssSource(DealSource):
     def fetch(self) -> list[DealObservation]:
         deals: dict[str, DealObservation] = {}
         feed_errors = 0
-        for feed_url in _FEEDS:
+        for feed_url, title_filter in _FEEDS:
             try:
                 resp = self.session.get(feed_url, timeout=(5, 20))
                 resp.raise_for_status()
@@ -69,6 +74,8 @@ class AmazonRssSource(DealSource):
                 continue
             for item in root.iter("item"):
                 deal = self._parse_item(item)
+                if deal and title_filter and not title_filter.search(deal.title):
+                    continue
                 if deal and deal.external_id not in deals:
                     deals[deal.external_id] = deal
         if not deals and feed_errors == len(_FEEDS):
