@@ -41,7 +41,7 @@ PUBLISH_PATTERN = (
     "mercadolibre", "ktronix", "amazon",
     "mercadolibre", "exito", "alkosto", "ktronix",
 )
-REEL_SOURCES = {"mercadolibre", "amazon"}
+REEL_SOURCES = {"mercadolibre", "exito", "alkosto", "ktronix"}
 
 
 def publish_queues(database: Database, as_reel: bool = False) -> list[list[str]]:

@@ -85,7 +85,7 @@ class PublishQueueTests(unittest.TestCase):
                 return [db.get_candidate(q[0]).deal.source for q in queues]
 
             self.assertEqual(order(publish_queues(db)), ["mercadolibre", "exito", "amazon"])  # woot never
-            self.assertEqual(order(publish_queues(db, as_reel=True)), ["mercadolibre", "amazon"])
+            self.assertEqual(order(publish_queues(db, as_reel=True)), ["mercadolibre", "exito"])
             for n, source in enumerate(("mercadolibre", "amazon")):
                 cid = ids[source][0]
                 db.reserve_for_publish(cid, 15)
