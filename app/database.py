@@ -22,6 +22,7 @@ class Database:
     def __init__(self, url: str) -> None:
         self.url = url
         self.is_postgres = url.startswith(("postgres://", "postgresql://"))
+        self._pg = None  # one reused PostgreSQL connection per run; a new one per query exhausts the pooler
         if not self.is_postgres and not url.startswith("sqlite:///"):
             raise ValueError("DATABASE_URL debe usar sqlite:/// o postgresql://.")
         if not self.is_postgres:
@@ -36,7 +37,12 @@ class Database:
                 from psycopg.rows import dict_row
             except ImportError as exc:
                 raise DatabaseError("Instala psycopg[binary] para usar PostgreSQL.") from exc
-            return psycopg.connect(self.url, row_factory=dict_row)
+            if self._pg is None or self._pg.closed or self._pg.broken:
+                # prepare_threshold=None: Supabase's pooler (Supavisor) can stall on server-side prepared statements.
+                self._pg = psycopg.connect(
+                    self.url, row_factory=dict_row, autocommit=True, connect_timeout=15, prepare_threshold=None
+                )
+            return self._pg
         conn = sqlite3.connect(self.sqlite_path, timeout=30, isolation_level=None)
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA foreign_keys = ON")
@@ -49,11 +55,12 @@ class Database:
     @contextmanager
     def _transaction(self, immediate: bool = False) -> Iterator[Any]:
         conn = self._connect()
+        if self.is_postgres:
+            with conn.transaction():
+                yield conn
+            return
         try:
-            if self.is_postgres:
-                conn.execute("BEGIN")
-            else:
-                conn.execute("BEGIN IMMEDIATE" if immediate else "BEGIN")
+            conn.execute("BEGIN IMMEDIATE" if immediate else "BEGIN")
             yield conn
             conn.commit()
         except Exception:
@@ -65,6 +72,9 @@ class Database:
     @contextmanager
     def _connection(self) -> Iterator[Any]:
         conn = self._connect()
+        if self.is_postgres:
+            yield conn
+            return
         try:
             yield conn
         finally:
