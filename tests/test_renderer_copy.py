@@ -126,3 +126,17 @@ class PromoStoryTests(unittest.TestCase):
             path = ReelRenderer(Path(directory)).render_story_from_image(square, "s", "PROMO DEL DÍA: LG")
             with Image.open(path) as img:
                 self.assertEqual(img.size, (1080, 1920))
+
+
+class TrendTagTests(unittest.TestCase):
+    def test_three_trending_tags_vary_per_post_and_are_optional(self):
+        import os
+        from unittest import mock
+        from app.copywriter import trend_tags
+        self.assertEqual(trend_tags("X"), "")
+        with mock.patch.dict(os.environ, {"TRENDING_TAGS": "descuento, #combo,regalo,Navidad,amor y amistad"}):
+            tags = trend_tags("A").split()
+            self.assertEqual(len(tags), 3)
+            self.assertTrue(all(t.startswith("#") and "##" not in t for t in tags))
+            self.assertIn("#amoryamistad", {t for seed in "ABCDEFGHIJ" for t in trend_tags(seed).split()})
+            self.assertGreater(len({trend_tags(seed) for seed in "ABCDEFGHIJ"}), 1)

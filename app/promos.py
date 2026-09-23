@@ -9,6 +9,7 @@ from zoneinfo import ZoneInfo
 from PIL import Image, ImageDraw, ImageOps
 
 from app.image_renderer import CANVAS, OfferImageRenderer
+from app.copywriter import trend_tags
 from app.models import DealObservation, money, store_name
 
 # Brand -> search terms. The brand is rotated by day so consecutive days feature different brands.
@@ -105,7 +106,7 @@ def promo_copy(promo: Promo, now: datetime | None = None, link_in_comment: bool 
         "",
         "¿Cuál te llevarías? Cuéntanos 👇",
         "",
-        f"#OjoAlPrecio #promo #descuentos #{promo.store} #{promo.brand.lower()} #Colombia",
+        " ".join(f"#OjoAlPrecio #promo #descuentos #{promo.store} #{promo.brand.lower()} #Colombia {trend_tags(promo.key)}".split()),
     ]
     return "\n".join(lines)
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from decimal import Decimal
 import hashlib
+import os
 from zoneinfo import ZoneInfo
 
 from app.models import DealObservation, DiscountEvidence, from_minor, money, store_name
@@ -39,6 +40,16 @@ _SOURCE_TAGS = {
     "alkosto": "#alkosto",
     "ktronix": "#ktronix",
 }
+
+
+def trend_tags(seed: str, count: int = 3) -> str:
+    """`count` hashtags from TRENDING_TAGS (comma list, e.g. from Facebook's Inspiration Hub), varied per post."""
+    tags = [t.strip().lstrip("#").replace(" ", "") for t in os.getenv("TRENDING_TAGS", "").split(",") if t.strip()]
+    if not tags:
+        return ""
+    start = int(hashlib.md5(f"trend{seed}".encode()).hexdigest(), 16) % len(tags)
+    picked = [tags[(start + i) % len(tags)] for i in range(min(count, len(tags)))]
+    return " ".join(f"#{t}" for t in picked)
 
 
 def _pick(deal: DealObservation, options: list[str], salt: str = "") -> str:
@@ -90,5 +101,6 @@ def facebook_copy(
             lines.append("Enlace afiliado: podemos recibir una comisión sin costo adicional para ti.")
     lines.extend(["", _pick(deal, _QUESTIONS, salt="q"), ""])
     source_tags = _SOURCE_TAGS.get(deal.source, "")
-    lines.append(f"#OjoAlPrecio #descuentos #ofertas {source_tags} #tecnologia #Colombia".replace("  ", " "))
+    tags = f"#OjoAlPrecio #descuentos #ofertas {source_tags} #Colombia {trend_tags(deal.external_id)}"
+    lines.append(" ".join(tags.split()))
     return "\n".join(lines)

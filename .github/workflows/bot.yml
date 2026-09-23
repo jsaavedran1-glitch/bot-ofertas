@@ -51,6 +51,8 @@ jobs:
       REEL_HOURS: "8,13,20"
       STORIES: "false"
       PROMO_HOURS: "12"
+      # Tendencias del Centro de inspiración de Facebook (Panel profesional). Actualizar cada semana.
+      TRENDING_TAGS: "descuento,combo,regalo,compra,Presupuesto,pedidos,Favorita,Navidad,Septiembre"
       REPOST_COOLDOWN_DAYS: "7"
     steps:
       - uses: actions/checkout@v4
