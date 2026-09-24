@@ -133,7 +133,8 @@ class TrendTagTests(unittest.TestCase):
         import os
         from unittest import mock
         from app.copywriter import trend_tags
-        self.assertEqual(trend_tags("X"), "")
+        with mock.patch.dict(os.environ, {"TRENDING_TAGS": ""}):
+            self.assertEqual(trend_tags("X"), "")
         with mock.patch.dict(os.environ, {"TRENDING_TAGS": "descuento, #combo,regalo,Navidad,amor y amistad"}):
             tags = trend_tags("A").split()
             self.assertEqual(len(tags), 3)
