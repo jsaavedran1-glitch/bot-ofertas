@@ -48,7 +48,8 @@ jobs:
       # Una publicación cada 30 minutos de 7:00 a 23:30
       PUBLISH_HOURS: "7-24"
       LINK_IN_COMMENT: "true"
-      REEL_HOURS: "8,13,20"
+      # 10 reels al día: la primera ejecución de cada una de estas horas publica un reel
+      REEL_HOURS: "8,9,10,11,13,15,17,19,20,21"
       STORIES: "false"
       PROMO_HOURS: "12"
       # Tendencias del Centro de inspiración de Facebook (Panel profesional). Actualizar cada semana.
