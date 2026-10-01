@@ -11,7 +11,7 @@ import sqlite3
 from app.models import Candidate, DealObservation, DiscountEvidence, utc_now
 
 
-VALID_STATUSES = {"pending", "approved", "publishing", "published", "rejected", "failed", "unknown"}
+VALID_STATUSES = {"pending", "approved", "publishing", "published", "rejected", "failed", "unknown", "expired"}
 
 
 class DatabaseError(RuntimeError):
@@ -281,11 +281,12 @@ class Database:
             ))
             if cursor.rowcount == 1:
                 return True
-            # Seen again: keep the pending/approved candidate fresh so it stays publishable.
-            conn.execute(
+            # Seen again: refresh pending/approved ones, and bring expired ones back to pending.
+            cursor = conn.execute(
                 self._sql(
-                    "UPDATE candidates SET observed_at=?, url=?, image_url=?, affiliate=?, updated_at=?"
-                    " WHERE id=? AND status IN ('pending','approved')"
+                    "UPDATE candidates SET observed_at=?, url=?, image_url=?, affiliate=?, updated_at=?,"
+                    " status=CASE WHEN status='expired' THEN 'pending' ELSE status END"
+                    " WHERE id=? AND status IN ('pending','approved','expired')"
                 ),
                 (deal.observed_at.astimezone(timezone.utc).isoformat(), deal.url, deal.image_url,
                  int(deal.affiliate), now, deal.candidate_id),
@@ -338,7 +339,7 @@ class Database:
         cutoff = (utc_now() - timedelta(hours=max_age_hours)).isoformat()
         with self._transaction() as conn:
             cursor = conn.execute(
-                self._sql("UPDATE candidates SET status='rejected', updated_at=? WHERE status='approved' AND observed_at < ?"),
+                self._sql("UPDATE candidates SET status='expired', updated_at=? WHERE status='approved' AND observed_at < ?"),
                 (utc_now().isoformat(), cutoff),
             )
             return cursor.rowcount

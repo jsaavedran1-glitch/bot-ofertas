@@ -131,7 +131,7 @@ def parser() -> argparse.ArgumentParser:
     commands.add_parser("scan", help="Buscar y guardar ofertas candidatas")
     listing = commands.add_parser("list", help="Listar ofertas")
     listing.add_argument("--status", default="pending", choices=(
-        "pending", "approved", "publishing", "published", "rejected", "failed", "unknown"
+        "pending", "approved", "publishing", "published", "rejected", "failed", "unknown", "expired"
     ))
     for name in ("approve", "reject", "render", "publish"):
         command = commands.add_parser(name)
@@ -183,9 +183,9 @@ def main() -> int:
                 for _, image, caption in pipeline.dry_run(ids):
                     print(f"\nImagen: {image.resolve()}\n{caption}\n")
             elif args.automatic:
-                # Auto-approve new candidates
-                for candidate_id in ids:
-                    database.decide(candidate_id, "approved", actor="system")
+                # Auto-approve everything pending: new deals and expired ones seen again.
+                for candidate in database.list_candidates("pending", limit=1000):
+                    database.decide(candidate.id, "approved", actor="system")
                 expired = database.expire_stale(settings.candidate_max_age_hours)
                 if expired:
                     print(f"Vencidas: {expired}")

@@ -130,7 +130,10 @@ class PublisherPipelineTests(unittest.TestCase):
         self.db.decide(other.candidate_id, "approved")
         self.assertFalse(self.db.create_candidate(replace(self.deal, observed_at=utc_now()), 40))
         self.assertEqual(self.db.expire_stale(6), 1)
-        self.assertEqual(self.db.get_candidate(other.candidate_id).status, "rejected")
+        self.assertEqual(self.db.get_candidate(other.candidate_id).status, "expired")
+        # Seen again by a later scan: back to pending so automatic mode approves it.
+        self.db.create_candidate(replace(other, observed_at=utc_now()), 40)
+        self.assertEqual(self.db.get_candidate(other.candidate_id).status, "pending")
         self.assertEqual(self.db.get_candidate(self.deal.candidate_id).status, "approved")
 
     def test_timeout_is_ambiguous_and_not_retried(self):
