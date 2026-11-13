@@ -31,6 +31,13 @@ def _hook(deal: DealObservation, usd_cop_rate: Decimal | None = None) -> str:
     short = _short(display_name(deal))
     now, before, saved = _prices(deal, usd_cop_rate)
     pct = deal.discount_pct
+    if deal.evidence == DiscountEvidence.GIFT_CARD_VALUE:
+        value = f"US${from_minor(deal.original_price_minor, 'USD'):,.0f}"
+        paid = f"US${from_minor(deal.price_minor, 'USD'):,.0f}"
+        return _pick(deal, [
+            f"🎮 {short}: pagas {paid} y recibes {value} de saldo",
+            f"🎮 ¡Saldo extra en PlayStation! {value} por solo {paid}",
+        ])
     if deal.lowest_30d:
         return _pick(deal, [
             f"🔻 ¡Precio más bajo en 30 días! {short} a {now}",
@@ -59,6 +66,7 @@ def _hook(deal: DealObservation, usd_cop_rate: Decimal | None = None) -> str:
 
 
 BIG_TICKET_COP = 400_000  # ~US$100
+ENGLISH_SOURCES = {"amazon", "newegg"}  # their titles arrive in English
 
 
 def _price_cop(deal: DealObservation, usd_cop_rate: Decimal | None) -> int:
@@ -84,6 +92,7 @@ _SOURCE_TAGS = {
     "falabella": "#falabella #moda",
     "nike": "#nike #nikecolombia",
     "tennis": "#tennis #moda",
+    "newegg": "#playstation #psn",
 }
 
 
@@ -121,7 +130,12 @@ def facebook_copy(
     if ai and ai.hook:
         lines.append(ai.hook)
     lines.append("")
-    if before and deal.evidence == DiscountEvidence.OFFICIAL_ORIGINAL:
+    if before and deal.evidence == DiscountEvidence.GIFT_CARD_VALUE:
+        value = f"US${from_minor(deal.original_price_minor, 'USD'):,.2f}"
+        extra = f"US${from_minor(deal.original_price_minor - deal.price_minor, 'USD'):,.2f}"
+        paid = f"US${from_minor(deal.price_minor, 'USD'):,.2f}"
+        lines.append(f"✅ Pagas {paid} ({approx}{now}) y recibes {value} de saldo: {extra} extra")
+    elif before and deal.evidence == DiscountEvidence.OFFICIAL_ORIGINAL:
         lines.append(f"✅ Antes {approx}{before} → Ahora {approx}{now} (ahorras {saved})")
     elif before:
         lines.append(f"✅ Precio típico observado {approx}{before} → Hoy {approx}{now} (-{deal.discount_pct}%)")
@@ -133,10 +147,14 @@ def facebook_copy(
     if stars:
         lines.append(f"⭐ {stars} en {store_name(deal.source)}")
     # Amazon titles arrive in English: show Claude's Spanish version; store titles stay as they are.
-    title = ai.title_es if ai and ai.title_es and deal.source == "amazon" else deal.title
+    title = ai.title_es if ai and ai.title_es and deal.source in ENGLISH_SOURCES else deal.title
     lines.append(f"🛍️ {title}")
     lines.extend(f"✔️ {point}" for point in (ai.points if ai else ()))
-    lines.append(f"🏪 {store_name(deal.source)}" + (f" · 🚚 {deal.shipping_note}" if deal.shipping_note else ""))
+    if deal.evidence == DiscountEvidence.GIFT_CARD_VALUE:
+        lines.append(f"🏪 {store_name(deal.source)}")
+        lines.append(f"🎮 {deal.shipping_note}")
+    else:
+        lines.append(f"🏪 {store_name(deal.source)}" + (f" · 🚚 {deal.shipping_note}" if deal.shipping_note else ""))
     lines.append("👇 Link en el primer comentario" if link_in_comment else f"👉 {deal.url}")
     lines.append("")
     local_time = deal.observed_at.astimezone(ZoneInfo("America/Bogota"))

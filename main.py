@@ -13,6 +13,7 @@ from app.publishers.facebook import FacebookPublisher, FacebookPublishError
 from app.sources import PartnerFeedSource
 from app.sources.amazon_rss import AmazonRssSource
 from app.sources.colombia_stores import colombia_store_sources
+from app.sources.newegg_cards import NeweggPlayStationCardSource
 from app.promos import PROMO_STORES, PromoRenderer, find_promo, promo_copy, promo_links
 
 
@@ -25,14 +26,16 @@ def build_runtime(settings: Settings, include_sources: bool = True) -> tuple[Dat
     if include_sources:
         sources.append(AmazonRssSource(min_discount_pct=settings.min_discount_pct))
         sources.extend(colombia_store_sources())
+        sources.append(NeweggPlayStationCardSource())  # only when Newegg has a PSN gift card promo
         sources.append(PartnerFeedSource(settings.partner_feed_path))
     return database, OfferPipeline(settings, database, sources)
 
 
-# Every 13 posts: 4 Amazon, 2 Falabella (Adidas, Nike, Puma, New Balance), 2 Nike, 2 Alkosto, 1 Ktronix,
-# 1 Tennis, 1 Éxito. A source with nothing approved is skipped.
+# Every 14 posts: 4 Amazon, 2 Falabella (Adidas, Nike, Puma, New Balance), 2 Nike, 2 Alkosto, 1 Ktronix,
+# 1 Tennis, 1 Éxito and 1 Newegg (PlayStation cards, only when there is a promo). A source with nothing
+# approved is skipped.
 PUBLISH_PATTERN = (
-    "amazon", "falabella", "alkosto", "nike", "amazon", "ktronix", "falabella",
+    "amazon", "newegg", "falabella", "alkosto", "nike", "amazon", "ktronix", "falabella",
     "amazon", "tennis", "alkosto", "nike", "amazon", "exito",
 )
 REEL_SOURCES = {"amazon", "exito", "alkosto", "ktronix", "falabella", "nike", "tennis"}

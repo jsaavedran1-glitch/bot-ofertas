@@ -45,7 +45,7 @@ def qualifies(
     usd_cop_rate: Decimal | None,
 ) -> bool:
     return (
-        deal.evidence in {DiscountEvidence.OFFICIAL_ORIGINAL, DiscountEvidence.OWN_HISTORY}
+        deal.evidence in {DiscountEvidence.OFFICIAL_ORIGINAL, DiscountEvidence.OWN_HISTORY, DiscountEvidence.GIFT_CARD_VALUE}
         and deal.discount_pct >= min_discount_pct
         and savings_cop(deal, usd_cop_rate) >= min_savings_cop
     )

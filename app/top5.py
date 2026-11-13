@@ -6,7 +6,7 @@ from decimal import Decimal
 from zoneinfo import ZoneInfo
 
 from app.copywriter import trend_tags
-from app.models import Candidate, from_minor, money, store_name, to_minor, variant_key
+from app.models import Candidate, DiscountEvidence, from_minor, money, store_name, to_minor, variant_key
 
 NUMBERS = ("1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣")
 MAX_ITEMS, MIN_ITEMS, MAX_PER_STORE = 5, 3, 2
@@ -18,6 +18,8 @@ def pick_top(candidates: list[Candidate]) -> list[Candidate]:
     per_store: dict[str, int] = {}
     keys: set[str] = set()
     for c in candidates:
+        if c.deal.evidence == DiscountEvidence.GIFT_CARD_VALUE:
+            continue  # "pay X, get Y of balance" needs its own wording: single posts only
         key = variant_key(c.deal.title)
         if per_store.get(c.deal.source, 0) >= MAX_PER_STORE or key in keys:
             continue

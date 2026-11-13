@@ -13,6 +13,7 @@ import hashlib
 class DiscountEvidence(str, Enum):
     OFFICIAL_ORIGINAL = "official_original"
     OWN_HISTORY = "own_history"
+    GIFT_CARD_VALUE = "gift_card_value"  # "pay $250, get $290 of balance": the reference is the balance, not a former price
     NONE = "none"
 
 

@@ -178,20 +178,41 @@ class OfferImageRenderer:
             draw.text((W // 2, ty), line, anchor="ma", font=title_font, fill=WHITE)
             ty += title_font.size + 10
 
-        in_cop = deal.currency == "USD" and bool(usd_cop_rate)
+        # Gift card promos stay in dollars: "pay US$250, get US$290" only reads right in one currency.
+        in_cop = deal.currency == "USD" and bool(usd_cop_rate) and deal.evidence != DiscountEvidence.GIFT_CARD_VALUE
 
         def cop(minor: int) -> int:
             return to_minor(from_minor(minor, "USD") * usd_cop_rate, "COP") if in_cop else minor
 
         currency = "COP" if in_cop else deal.currency
         price_y = ty + 8
-        draw.text((W // 2, price_y), "AHORA", anchor="ma", font=self._font(30, bold=True), fill=MUTED)
+        gift = deal.evidence == DiscountEvidence.GIFT_CARD_VALUE
+        draw.text((W // 2, price_y), "PAGAS" if gift else "AHORA", anchor="ma", font=self._font(30, bold=True), fill=MUTED)
         price = money(cop(deal.price_minor), currency).replace(" COP", "")
         price_font = self._fit_font(draw, price, W - 160, 136, 70, weight="Black")
         draw.text((W // 2, price_y + 36), price, anchor="ma", font=price_font, fill=YELLOW)
         y = price_y + 36 + price_font.size + 14
 
-        if deal.original_price_minor:
+        if deal.original_price_minor and gift:
+            # Gift card promos: the reference is the balance received, in the card's own currency.
+            value = f"US${from_minor(deal.original_price_minor, 'USD'):,.0f}"
+            line = f"RECIBES {value} EN SALDO"
+            draw.text((W // 2, y + 4), line, anchor="ma", font=self._fit_font(draw, line, W - 200, 40, 28), fill=WHITE)
+            y += 60
+            extra = f"US${from_minor(deal.original_price_minor - deal.price_minor, 'USD'):,.0f}"
+            pill = f"GANAS {extra} DE SALDO EXTRA"
+            pfont = self._fit_font(draw, pill, W - 200, 40, 28)
+            pw = int(draw.textlength(pill, font=pfont)) + 70
+            draw.rounded_rectangle((W // 2 - pw // 2, y, W // 2 + pw // 2, y + 62), radius=31, fill=GREEN)
+            draw.text((W // 2, y + 31), pill, anchor="mm", font=pfont, fill=NAVY)
+            y += 76
+            region = "Válida solo en cuentas PSN de EE. UU."
+            draw.text((W // 2, y), region, anchor="ma", font=self._font(26, weight="Black"), fill=YELLOW)
+            y += 36
+            if usd_cop_rate:
+                pesos = money(to_minor(from_minor(deal.price_minor, "USD") * usd_cop_rate, "COP"), "COP").replace(" COP", "")
+                draw.text((W // 2, y), f"≈ {pesos} pesos colombianos", anchor="ma", font=self._font(24, bold=True), fill=MUTED)
+        elif deal.original_price_minor:
             label = "ANTES " if deal.evidence == DiscountEvidence.OFFICIAL_ORIGINAL else "PRECIO TÍPICO "
             before = money(cop(deal.original_price_minor), currency).replace(" COP", "")
             bfont = self._font(40, bold=True)
