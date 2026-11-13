@@ -160,6 +160,13 @@ def ai_preview(settings: Settings, database: Database, pipeline: OfferPipeline, 
         for point in ai.points:
             print(f"  Beneficio:      {point}")
         print(f"  Pregunta:       {ai.question}")
+        if n <= 3:  # also try the visual review on a few rendered posts
+            try:
+                image = pipeline.renderer.render(replace(c.deal, ai=ai), f"preview_{c.id}", usd_cop_rate=rate, require_image=True)
+                approved, problem = helper.review_image(image, c.deal)
+                print(f"  Revisión visual: {'aprobada' if approved else 'RECHAZADA - ' + problem}")
+            except Exception as exc:
+                print(f"  Revisión visual: no se pudo generar la imagen ({type(exc).__name__})")
         if example is None:
             example = replace(c.deal, ai=ai)
     if example is not None:
