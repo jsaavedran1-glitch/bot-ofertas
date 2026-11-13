@@ -13,6 +13,7 @@ from app.image_renderer import MissingProductImage, OfferImageRenderer
 from app.reel_renderer import ReelRenderer
 from app.models import Candidate, DiscountEvidence, utc_now
 from app.publishers.facebook import FacebookPublisher, FacebookPublishError
+from app.publishers.telegram import TelegramPublisher, deal_caption, top_caption
 from app.rates import ExchangeRateProvider
 from app.scoring import qualifies, score, validate_observation
 from app.sources.base import DealSource, SourceError
@@ -42,6 +43,10 @@ class OfferPipeline:
         self.renderer = renderer or OfferImageRenderer(settings.generated_dir)
         self.rate_provider = rate_provider or ExchangeRateProvider(settings.usd_cop_rate)
         self.reel_renderer = reel_renderer or ReelRenderer(settings.generated_dir)
+        self.telegram = (
+            TelegramPublisher(settings.telegram_bot_token, settings.telegram_chat_id)
+            if settings.telegram_bot_token and settings.telegram_chat_id else None
+        )
 
     def scan(self) -> ScanReport:
         report = ScanReport()
@@ -156,6 +161,14 @@ class OfferPipeline:
                         print(f"Advertencia {candidate_id}: {exc}", file=sys.stderr)
                     else:
                         time.sleep(15)
+        if self.telegram:
+            # Telegram is a bonus channel: failures only warn.
+            try:
+                rate = self.rate_provider.usd_to_cop()
+                square = self.renderer.render(candidate.deal, candidate.id, usd_cop_rate=rate, require_image=True)
+                self.telegram.send_photo(square, deal_caption(candidate.deal, rate))
+            except Exception as exc:
+                print(f"Advertencia Telegram {candidate_id}: {exc}", file=sys.stderr)
         if self.settings.stories:
             # Every post is mirrored to the Page story (public). A story is a bonus: failures only warn.
             try:
@@ -202,6 +215,11 @@ class OfferPipeline:
                 publisher.comment(post_id, top_links(items))
             except FacebookPublishError as exc:
                 print(f"Advertencia top 5: {exc}", file=sys.stderr)
+        if self.telegram:
+            try:
+                self.telegram.send_album(images, top_caption([c.deal for c in items], rate))
+            except Exception as exc:
+                print(f"Advertencia Telegram top 5: {exc}", file=sys.stderr)
         return post_id, items
 
     def _revalidate(self, candidate: Candidate):

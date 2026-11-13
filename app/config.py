@@ -56,6 +56,8 @@ class Settings:
     stories: bool = False
     promo_hours: frozenset[int] = frozenset()
     top_hours: frozenset[int] = frozenset()
+    telegram_bot_token: str = ""
+    telegram_chat_id: str = ""
     min_minutes_between_posts: int = 0
 
     @classmethod
@@ -104,5 +106,7 @@ class Settings:
             stories=_as_bool(os.getenv("STORIES"), False),
             promo_hours=frozenset(int(h) for h in os.getenv("PROMO_HOURS", "").split(",") if h.strip()),
             top_hours=frozenset(int(h) for h in os.getenv("TOP_HOURS", "").split(",") if h.strip()),
+            telegram_bot_token=os.getenv("TELEGRAM_BOT_TOKEN", "").strip(),
+            telegram_chat_id=os.getenv("TELEGRAM_CHAT_ID", "").strip(),
             min_minutes_between_posts=int(os.getenv("MIN_MINUTES_BETWEEN_POSTS", "0")),
         )

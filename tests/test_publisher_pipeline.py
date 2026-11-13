@@ -411,3 +411,49 @@ class TopFiveTests(unittest.TestCase):
         session = CarouselSession()
         self.assertIsNone(self.pipeline.publish_top(self.db.list_candidates("approved"), FacebookPublisher("page", "t", "v26.0", session)))
         self.assertEqual(session.calls, [])
+
+
+class TelegramSession:
+    def __init__(self):
+        self.calls = []
+
+    def post(self, url, **kwargs):
+        self.calls.append((url, kwargs))
+        return FakeMetaResponse()
+
+
+class TelegramTests(unittest.TestCase):
+    setUp = PublisherPipelineTests.setUp
+    tearDown = PublisherPipelineTests.tearDown
+
+    def test_published_deal_is_mirrored_to_telegram_with_link(self):
+        from app.publishers.telegram import TelegramPublisher
+        self.db.decide(self.deal.candidate_id, "approved")
+        tg = TelegramSession()
+        self.pipeline.telegram = TelegramPublisher("SECRET-BOT-TOKEN", "@ojoalprecio", tg)
+        self.pipeline.publish(self.deal.candidate_id, FacebookPublisher("page", "t", "v26.0", RecordingSession()))
+        url, kwargs = tg.calls[0]
+        self.assertTrue(url.endswith("/sendPhoto"))
+        self.assertEqual(kwargs["data"]["chat_id"], "@ojoalprecio")
+        self.assertIn('href="https://example.com/P"', kwargs["data"]["caption"])
+
+    def test_telegram_failure_never_leaks_token_or_breaks_publish(self):
+        from app.publishers.telegram import TelegramPublisher
+
+        class Down(TelegramSession):
+            def post(self, url, **kwargs):
+                raise requests.ConnectionError(url)
+
+        self.db.decide(self.deal.candidate_id, "approved")
+        self.pipeline.telegram = TelegramPublisher("SECRET-BOT-TOKEN", "@c", Down())
+        with self.assertRaises(RuntimeError) as raised:
+            self.pipeline.telegram.send_photo(Path(__file__), "x")
+        self.assertNotIn("SECRET-BOT-TOKEN", str(raised.exception))
+        self.assertEqual(self.pipeline.publish(self.deal.candidate_id, FacebookPublisher("page", "t", "v26.0", RecordingSession())), "page_456")
+
+    def test_captions_escape_html(self):
+        from dataclasses import replace
+        from app.publishers.telegram import deal_caption, top_caption
+        d = replace(self.deal, title="TV <55\" & más>")
+        self.assertIn("TV &lt;55&quot; &amp; más&gt;", deal_caption(d, None))
+        self.assertLessEqual(len(top_caption([d] * 5, None)), 1024)
