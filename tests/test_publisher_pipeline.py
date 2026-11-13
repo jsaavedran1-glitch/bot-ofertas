@@ -336,3 +336,78 @@ class VideoStoryTests(unittest.TestCase):
         self.assertIsNone(self.db.minutes_since_last_post())
         self.db.record_promo("alkosto:lg", "post_9")
         self.assertLess(self.db.minutes_since_last_post(), 1)
+
+
+class CarouselSession:
+    def __init__(self):
+        self.calls = []
+
+    def post(self, url, **kwargs):
+        self.calls.append((url, kwargs))
+        response = FakeMetaResponse()
+        n = len(self.calls)
+        if url.endswith("/feed"):
+            response.json = lambda: {"id": "page_top_1"}
+        elif (kwargs.get("data") or {}).get("published") == "false":
+            response.json = lambda n=n: {"id": f"photo_{n}"}
+        else:
+            response.json = lambda: {"id": "c1"}
+        return response
+
+
+class TopFiveTests(unittest.TestCase):
+    setUp = PublisherPipelineTests.setUp
+    tearDown = PublisherPipelineTests.tearDown
+
+    def _approved(self, n, source):
+        from dataclasses import replace
+        ids = []
+        for i in range(n):
+            d = replace(self.deal, source=source, external_id=f"{source}{i}", price_minor=50_000 + i)
+            self.db.create_candidate(d, 90 - i)
+            self.db.decide(d.candidate_id, "approved")
+            ids.append(d.candidate_id)
+        return ids
+
+    def test_pick_top_caps_two_per_store(self):
+        from app.top5 import pick_top
+        self._approved(4, "alkosto")
+        self._approved(4, "amazon")
+        self._approved(1, "ktronix")
+        picked = pick_top(self.db.list_candidates("approved"))
+        self.assertEqual(len(picked), 5)
+        sources = [c.deal.source for c in picked]
+        self.assertTrue(all(sources.count(s) <= 2 for s in set(sources)))
+
+    def test_carousel_posts_once_with_attached_photos_and_marks_published(self):
+        from dataclasses import replace
+
+        class AnySource(SameSource):
+            source_name = "alkosto"
+            source_names = {"alkosto", "amazon", "ktronix"}
+
+            def revalidate(self, deal):
+                return deal
+
+        ids = self._approved(2, "alkosto") + self._approved(2, "amazon") + self._approved(1, "ktronix")
+        self.pipeline.sources = [AnySource(self.deal)]
+        self.pipeline.settings = replace(self.settings, link_in_comment=True)
+        session = CarouselSession()
+        post_id, items = self.pipeline.publish_top(
+            self.db.list_candidates("approved"), FacebookPublisher("page", "t", "v26.0", session)
+        )
+        self.assertEqual(post_id, "page_top_1")
+        self.assertEqual(len(items), 5)
+        feed = [kw for u, kw in session.calls if u.endswith("/feed")]
+        self.assertEqual(len(feed), 1)
+        self.assertEqual(sum(k.startswith("attached_media") for k in feed[0]["data"]), 5)
+        self.assertIn("TOP 5", feed[0]["data"]["message"])
+        self.assertTrue(any(u.endswith("/page_top_1/comments") for u, _ in session.calls))
+        self.assertTrue(self.db.top_published_today())
+        self.assertTrue(all(self.db.get_candidate(i).status == "published" for i in ids))
+
+    def test_too_few_deals_publishes_nothing(self):
+        self._approved(2, "alkosto")
+        session = CarouselSession()
+        self.assertIsNone(self.pipeline.publish_top(self.db.list_candidates("approved"), FacebookPublisher("page", "t", "v26.0", session)))
+        self.assertEqual(session.calls, [])

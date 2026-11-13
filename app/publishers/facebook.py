@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 import re
 
@@ -158,3 +159,29 @@ class FacebookPublisher:
             raise FacebookPublishError(f"Meta rechazó la imagen de la historia (HTTP {response.status_code}).")
         story = self._call(f"{base}/photo_stories", headers=auth, data={"photo_id": photo_id})
         return str(story.get("post_id") or photo_id)
+
+    def publish_carousel(self, image_paths: list[Path], message: str) -> str:
+        """Multi-photo feed post: upload each image unpublished, then attach them all to one post."""
+        auth = {"Authorization": f"Bearer {self.page_token}"}
+        base = f"https://graph.facebook.com/{self.api_version}/{self.page_id}"
+        media_ids = []
+        for path in image_paths:
+            try:
+                with path.open("rb") as handle:
+                    response = self.session.post(
+                        f"{base}/photos", headers=auth, data={"published": "false"},
+                        files={"source": (path.name, handle, "image/png")}, timeout=(8, 45),
+                    )
+            except requests.RequestException as exc:
+                raise FacebookPublishError("No se pudo subir una imagen del carrusel.") from exc
+            photo_id = str((response.json() if response.ok else {}).get("id") or "")
+            if not photo_id:
+                raise FacebookPublishError(f"Meta rechazó una imagen del carrusel (HTTP {response.status_code}).")
+            media_ids.append(photo_id)
+        data = {"message": message, "published": "true"}
+        data.update({f"attached_media[{i}]": json.dumps({"media_fbid": m}) for i, m in enumerate(media_ids)})
+        post = self._call(f"{base}/feed", headers=auth, data=data, ambiguous=True)
+        post_id = str(post.get("id") or "")
+        if not post_id:
+            raise FacebookPublishError("Meta respondió sin identificador del carrusel.", ambiguous=True)
+        return post_id

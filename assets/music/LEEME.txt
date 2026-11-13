@@ -1,0 +1,3 @@
+Pon aquí 3-5 pistas libres de derechos (.mp3/.m4a) con licencia de uso comercial,
+por ejemplo de YouTube Audio Library o Pixabay Music. El bot rota una por Reel.
+Si la carpeta está vacía, los Reels salen sin música.

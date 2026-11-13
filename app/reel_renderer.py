@@ -11,6 +11,17 @@ from app.image_renderer import MissingProductImage, OfferImageRenderer
 from app.models import DealObservation, from_minor, money, store_name, to_minor
 
 W, H, FPS, SECONDS = 1080, 1920, 30, 9
+MUSIC_DIR = Path(__file__).parent.parent / "assets" / "music"
+MUSIC_EXT = {".mp3", ".m4a", ".wav", ".ogg"}
+
+
+def music_track(seed: str, folder: Path | None = None) -> Path | None:
+    """Royalty-free track for this reel (rotated by product), or None to keep the reel silent."""
+    folder = folder or MUSIC_DIR
+    tracks = sorted(p for p in folder.glob("*") if p.suffix.lower() in MUSIC_EXT) if folder.is_dir() else []
+    if not tracks:
+        return None
+    return tracks[int(hashlib.md5(seed.encode()).hexdigest(), 16) % len(tracks)]
 ORANGE, WHITE, MUTED, NAVY, PANEL = "#FFB11B", "#FFFFFF", "#A9B5C5", "#071426", "#0E223A"
 CARD = (90, 250, 990, 1090)
 LOWER = (0, 1280, W, 1790)  # area where the phases swap
@@ -56,12 +67,19 @@ class ReelRenderer(OfferImageRenderer):
     ) -> Path:
         base, photo, texts, in_cop = self._prepare(deal, usd_cop_rate, product_image_bytes, link_in_comment)
         output = self.output_dir / f"{name}.mp4"
+        track = music_track(deal.external_id)
+        if track:
+            audio_input = ["-stream_loop", "-1", "-i", str(track)]
+            audio_filter = ["-af", f"volume=0.6,afade=t=in:d=0.5,afade=t=out:st={SECONDS - 1}:d=1"]
+        else:
+            audio_input = ["-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo"]
+            audio_filter = []
         cmd = [
             "ffmpeg", "-y", "-loglevel", "error",
             "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{W}x{H}", "-r", str(FPS), "-i", "-",
-            "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo",
-            "-shortest", "-c:v", "libx264", "-preset", "medium", "-crf", "20", "-pix_fmt", "yuv420p",
-            "-c:a", "aac", "-movflags", "+faststart", str(output),
+            *audio_input,
+            "-t", str(SECONDS), "-c:v", "libx264", "-preset", "medium", "-crf", "20", "-pix_fmt", "yuv420p",
+            *audio_filter, "-c:a", "aac", "-movflags", "+faststart", str(output),
         ]
         with subprocess.Popen(cmd, stdin=subprocess.PIPE) as proc:
             for i in range(FPS * SECONDS):

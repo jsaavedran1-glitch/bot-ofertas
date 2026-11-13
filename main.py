@@ -203,6 +203,15 @@ def main() -> int:
                             return 0
                     except (FacebookPublishError, OSError) as exc:
                         print(f"Falló la promo del día: {exc}", file=sys.stderr)
+                if hour in settings.top_hours and not database.top_published_today():
+                    try:
+                        result = pipeline.publish_top(database.list_candidates(status="approved", limit=60))
+                        if result:
+                            print(f"Top {len(result[1])} del día publicado: {result[0]}")
+                            return 0
+                        print("Top 5: no hay suficientes ofertas válidas; se publica un post normal.")
+                    except (FacebookPublishError, OSError) as exc:
+                        print(f"Falló el top 5: {exc}", file=sys.stderr)
                 as_reel = hour in settings.reel_hours and not database.reel_published_this_hour()
                 queues = publish_queues(database, as_reel)
                 published = 0

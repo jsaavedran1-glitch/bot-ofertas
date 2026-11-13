@@ -141,3 +141,32 @@ class TrendTagTests(unittest.TestCase):
             self.assertTrue(all(t.startswith("#") and "##" not in t for t in tags))
             self.assertIn("#amoryamistad", {t for seed in "ABCDEFGHIJ" for t in trend_tags(seed).split()})
             self.assertGreater(len({trend_tags(seed) for seed in "ABCDEFGHIJ"}), 1)
+
+
+class ReelMusicTests(unittest.TestCase):
+    def test_reel_uses_a_music_track_when_one_exists(self):
+        import shutil, subprocess
+        from unittest import mock
+        if not shutil.which("ffmpeg"):
+            self.skipTest("ffmpeg no instalado")
+        import app.reel_renderer as rr
+        buffer = BytesIO()
+        Image.new("RGB", (300, 300), "red").save(buffer, format="PNG")
+        with tempfile.TemporaryDirectory() as directory:
+            music = Path(directory) / "music"
+            music.mkdir()
+            subprocess.run(["ffmpeg", "-loglevel", "error", "-f", "lavfi", "-i", "sine=frequency=440:duration=3",
+                            str(music / "tono.wav")], check=True)
+            self.assertEqual(rr.music_track("X", music), music / "tono.wav")
+            self.assertIsNone(rr.music_track("X", Path(directory) / "vacia"))
+            deal = DealObservation(
+                source="alkosto", external_id="M1", title="Parlante", price_minor=45_900,
+                original_price_minor=119_900, evidence=DiscountEvidence.OFFICIAL_ORIGINAL,
+                currency="COP", url="https://example.com/m1",
+            )
+            with mock.patch.object(rr, "MUSIC_DIR", music):
+                path = rr.ReelRenderer(Path(directory)).render_reel(deal, "m1", product_image_bytes=buffer.getvalue())
+            out = subprocess.run(["ffmpeg", "-i", str(path), "-af", "volumedetect", "-f", "null", "-"],
+                                 capture_output=True, text=True).stderr
+            mean = float(out.split("mean_volume:")[1].split("dB")[0])
+            self.assertGreater(mean, -40)  # silence would be about -91 dB

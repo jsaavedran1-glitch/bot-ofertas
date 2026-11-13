@@ -170,6 +170,40 @@ class OfferPipeline:
                 print(f"Advertencia historia {candidate_id}: {exc}", file=sys.stderr)
         return post_id
 
+    def publish_top(self, candidates: list[Candidate], publisher: FacebookPublisher | None = None) -> tuple[str, list[Candidate]] | None:
+        """Revalidate, render and post the day's Top 5 carousel. Returns (post_id, items) or None if too few."""
+        from app.top5 import MIN_ITEMS, pick_top, top_copy, top_links
+
+        still_valid = []
+        for c in candidates:
+            fresh = self._revalidate(c)
+            if fresh and fresh.available and fresh.price_minor == c.deal.price_minor and fresh.url == c.deal.url:
+                still_valid.append(c)
+        items = pick_top(still_valid)
+        if len(items) < MIN_ITEMS:
+            return None
+        rate = self.rate_provider.usd_to_cop()
+        images = []
+        for c in items:
+            try:
+                images.append(self.renderer.render(c.deal, f"top_{c.id}", usd_cop_rate=rate, require_image=True))
+            except MissingProductImage:
+                continue
+        items = [c for c in items if any(img.stem == f"top_{c.id}" for img in images)]
+        if len(items) < MIN_ITEMS:
+            return None
+        publisher = publisher or FacebookPublisher(
+            self.settings.fb_page_id, self.settings.fb_page_token, self.settings.meta_graph_api_version
+        )
+        post_id = publisher.publish_carousel(images, top_copy(items, rate, self.settings.link_in_comment))
+        self.database.record_top([c.id for c in items], post_id)
+        if self.settings.link_in_comment:
+            try:
+                publisher.comment(post_id, top_links(items))
+            except FacebookPublishError as exc:
+                print(f"Advertencia top 5: {exc}", file=sys.stderr)
+        return post_id, items
+
     def _revalidate(self, candidate: Candidate):
         for source in self.sources:
             source_names = getattr(source, "source_names", {source.source_name})

@@ -309,6 +309,30 @@ class Database:
             last = datetime.fromisoformat(last.replace("Z", "+00:00"))
         return (utc_now() - last).total_seconds() / 60
 
+    def top_published_today(self) -> bool:
+        local_day = utc_now().astimezone(ZoneInfo("America/Bogota")).date().isoformat()
+        sql = self._sql("SELECT 1 FROM publications WHERE platform='facebook_top' AND local_day=? LIMIT 1")
+        with self._connection() as conn:
+            return conn.execute(sql, (local_day,)).fetchone() is not None
+
+    def record_top(self, candidate_ids: list[str], post_id: str) -> None:
+        """Mark the carousel's deals as published (one row each; the suffix keeps external ids unique)."""
+        now = utc_now()
+        local_day = now.astimezone(ZoneInfo("America/Bogota")).date().isoformat()
+        with self._transaction(immediate=True) as conn:
+            for i, cid in enumerate(candidate_ids, 1):
+                conn.execute(
+                    self._sql("UPDATE candidates SET status='published', updated_at=? WHERE id=? AND status='approved'"),
+                    (now.isoformat(), cid),
+                )
+                conn.execute(
+                    self._sql(
+                        "INSERT INTO publications(candidate_id, platform, external_post_id, published_at, local_day)"
+                        " VALUES(?, 'facebook_top', ?, ?, ?) ON CONFLICT(candidate_id, platform) DO NOTHING"
+                    ),
+                    (cid, f"{post_id}:{i}", now.isoformat(), local_day),
+                )
+
     def promo_published_today(self) -> bool:
         local_day = utc_now().astimezone(ZoneInfo("America/Bogota")).date().isoformat()
         with self._connection() as conn:
