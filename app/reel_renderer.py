@@ -236,7 +236,9 @@ class ReelRenderer(OfferImageRenderer):
         draw.rounded_rectangle((CARD[0], HEADER_Y, CARD[0] + chip_w, HEADER_Y + 72), radius=36, fill=WHITE)
         draw.text((CARD[0] + chip_w // 2, HEADER_Y + 36), store, anchor="mm", font=chip_font, fill=NAVY)
         self._paste_emoji(img, (CARD[0] + chip_w + 22, HEADER_Y + 14), "🔥", 44)
-        draw.text((CARD[0] + chip_w + 76, HEADER_Y + 36), "OFERTA DEL DÍA", anchor="lm",
+        from app.events import event_tag
+
+        draw.text((CARD[0] + chip_w + 76, HEADER_Y + 36), event_tag(), anchor="lm",
                   font=self._font(34, weight="Black"), fill=YELLOW)
         draw.rounded_rectangle(CARD, radius=48, fill=WHITE)
         font, lines = self._fit_lines(draw, display_name(deal), 900, max_lines=2, start=44, minimum=30)

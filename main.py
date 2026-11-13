@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import argparse
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import hashlib
+import os
+from pathlib import Path
 from itertools import zip_longest
 import math
 import sys
@@ -10,15 +12,18 @@ import time
 from zoneinfo import ZoneInfo
 
 from app.config import Settings
+from app.events import CountdownRenderer, active_event, countdown, countdown_caption
+from app.metrics import MetricsError, PostStats, fetch_page_stats, weekly_report
 from app.content import ContentRenderer, NewsFeeds, content_caption, load_tips, news_post, next_tip
 from app.database import Database
-from app.models import DealObservation, DiscountEvidence, to_minor, variant_key
+from app.models import DealObservation, DiscountEvidence, store_name, to_minor, variant_key
 from app.pipeline import OfferPipeline
 from app.publishers.facebook import FacebookPublisher, FacebookPublishError
 from app.sources import PartnerFeedSource
 from app.sources.amazon_rss import AmazonRssSource
 from app.sources.colombia_stores import colombia_store_sources
 from app.sources.newegg_cards import NeweggPlayStationCardSource
+from app.sources.awin import AwinFeedSource
 from app.promos import PROMO_STORES, PromoRenderer, find_promo, promo_copy, promo_links
 
 
@@ -32,6 +37,8 @@ def build_runtime(settings: Settings, include_sources: bool = True) -> tuple[Dat
         sources.append(AmazonRssSource(min_discount_pct=settings.min_discount_pct))
         sources.extend(colombia_store_sources())
         sources.append(NeweggPlayStationCardSource())  # only when Newegg has a PSN gift card promo
+        if settings.awin_adidas_feed_url:  # Awin feed (Adidas CO), once the programme approves us
+            sources.append(AwinFeedSource(settings.awin_adidas_feed_url, "adidas"))
         sources.append(PartnerFeedSource(settings.partner_feed_path))
     return database, OfferPipeline(settings, database, sources)
 
@@ -41,9 +48,9 @@ def build_runtime(settings: Settings, include_sources: bool = True) -> tuple[Dat
 # approved is skipped.
 PUBLISH_PATTERN = (
     "amazon", "newegg", "falabella", "alkosto", "nike", "amazon", "ktronix", "falabella",
-    "amazon", "tennis", "alkosto", "nike", "amazon", "exito",
+    "amazon", "tennis", "alkosto", "nike", "amazon", "exito", "adidas",
 )
-REEL_SOURCES = {"amazon", "exito", "alkosto", "ktronix", "falabella", "nike", "tennis"}
+REEL_SOURCES = {"amazon", "exito", "alkosto", "ktronix", "falabella", "nike", "tennis", "adidas"}
 
 
 def publish_queues(database: Database, as_reel: bool = False, cooldown_days: int = 7) -> list[list[str]]:
@@ -126,12 +133,87 @@ def publish_content(settings: Settings, database: Database, pipeline: OfferPipel
     return True
 
 
+REPORT_PATH = Path("generated") / "informe_semanal.md"
+
+
+def collect_metrics(settings: Settings, database: Database, days: int = 8, session=None) -> int:
+    """Refresh reactions, comments and shares of the last `days` days of posts. Returns how many were updated."""
+    since = datetime.now(timezone.utc) - timedelta(days=days)
+    ours = database.posts_since(since)
+    if not ours:
+        return 0
+    counts = fetch_page_stats(settings.fb_page_id, settings.fb_page_token, settings.meta_graph_api_version,
+                              since - timedelta(hours=1), session=session)
+    rows = [(pid, kind, source, at, *(counts[pid][k] for k in ("reactions", "comments", "shares")))
+            for pid, kind, source, at in ours if pid in counts]
+    database.save_metrics(rows)
+    print(f"Métricas: {len(rows)} de {len(ours)} publicaciones actualizadas.")
+    return len(rows)
+
+
+def build_report(database: Database, end: datetime | None = None, days: int = 7) -> str:
+    end = end or datetime.now(timezone.utc)
+    start, before = end - timedelta(days=days), end - timedelta(days=2 * days)
+
+    def stats(rows):
+        return [PostStats(r["post_id"], r["kind"], r["source"], r["published_at"], r["reactions"], r["comments"],
+                          r["shares"]) for r in rows]
+
+    week, previous = stats(database.metrics_between(start, end)), stats(database.metrics_between(before, start))
+    names = {p.source: store_name(p.source) for p in week}
+    return weekly_report(week, start, end, previous, names)
+
+
+def write_report(report: str, path: Path = REPORT_PATH) -> None:
+    """Saved for the workflow, which opens it as a GitHub issue, and shown in the run's summary."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(report, encoding="utf-8")
+    summary = os.getenv("GITHUB_STEP_SUMMARY")
+    if summary:
+        with open(summary, "a", encoding="utf-8") as handle:
+            handle.write(report)
+
+
+def metrics_slot(settings: Settings, database: Database, now: datetime) -> None:
+    """At METRICS_HOURS (first run of the hour) refresh the counts; on Monday at 7 h also write the report."""
+    if now.hour not in settings.metrics_hours or now.minute >= 30:
+        return
+    try:
+        collect_metrics(settings, database)
+    except MetricsError as exc:
+        print(f"Advertencia métricas: {exc}", file=sys.stderr)
+        return
+    if now.weekday() == 0 and now.hour == 7:
+        write_report(build_report(database))
+        print("Informe semanal listo.")
+
+
+def publish_countdown(settings: Settings, database: Database, today, publisher: FacebookPublisher | None = None) -> bool:
+    """"Faltan N días para el Black Friday" (and "Hoy es ..." on the day), once per day."""
+    due = countdown(today)
+    if due is None:
+        return False
+    event, left = due
+    key = f"{event.key}:{today.isoformat()}"
+    if any(k == key for _, k, _ in database.content_history()):
+        return False
+    image = CountdownRenderer(settings.generated_dir).render_countdown(event, left, f"cuenta_{event.key}_{left}")
+    stores = "Amazon, Alkosto, Ktronix, Éxito, Falabella, Nike y Tennis"
+    publisher = publisher or FacebookPublisher(settings.fb_page_id, settings.fb_page_token, settings.meta_graph_api_version)
+    post_id = publisher.publish_photo(image, countdown_caption(event, left, stores))
+    database.record_content("evento", key, post_id)
+    print(f"{event.name}: {'hoy es' if left == 0 else f'faltan {left} días'} publicado: {post_id}")
+    return True
+
+
 def posts_due(settings: Settings, database: Database, now: datetime) -> int:
     """Posts this run should make. With POSTS_PER_HOUR, the run in the first half of the hour makes half of
     that hour's posts and the one in the second half the rest (runs come every 30 minutes)."""
     if not settings.hourly_posts:
         return settings.max_posts_per_run
     quota = settings.hourly_posts[now.hour]
+    if quota and active_event(now.date()):
+        quota = round(quota * settings.event_boost)
     due = quota if now.minute >= 30 else math.ceil(quota / 2)
     return max(0, due - database.posts_this_hour())
 
@@ -167,7 +249,13 @@ def publish_slot(settings: Settings, database: Database, pipeline: OfferPipeline
         if published:
             sleep(max(0.0, start + published * gap - clock()))
 
-    if now.hour in settings.promo_hours and not database.promo_published_today():
+    if now.hour == settings.countdown_hour and countdown(now.date()):
+        try:
+            published += publish_countdown(settings, database, now.date())
+        except (FacebookPublishError, OSError) as exc:
+            print(f"Falló la cuenta regresiva: {exc}", file=sys.stderr)
+    if published < due and now.hour in settings.promo_hours and not database.promo_published_today():
+        wait_turn()
         try:
             published += publish_promo(settings, database, pipeline)
         except (FacebookPublishError, OSError) as exc:
@@ -326,6 +414,10 @@ def parser() -> argparse.ArgumentParser:
     modes.add_argument("--dry-run", action="store_true")
     modes.add_argument("--automatic", action="store_true")
     commands.add_parser("demo", help="Generar imagen y copy ficticios sin publicar")
+    report = commands.add_parser("informe", help="Informe de reacciones, comentarios y compartidos por tipo, tienda y hora")
+    report.add_argument("--days", type=int, default=7)
+    report.add_argument("--collect", action="store_true", help="Actualizar las métricas desde Facebook antes")
+    report.add_argument("--save", action="store_true", help="Guardarlo para publicarlo como issue en GitHub")
     preview = commands.add_parser("ai-preview", help="Ver los textos de Claude para ofertas reales, sin publicar")
     preview.add_argument("--limit", type=int, default=20)
     return root
@@ -374,6 +466,7 @@ def main() -> int:
                 expired = database.expire_stale(settings.candidate_max_age_hours)
                 if expired:
                     print(f"Vencidas: {expired}")
+                metrics_slot(settings, database, datetime.now(ZoneInfo("America/Bogota")))
                 hour = datetime.now(ZoneInfo("America/Bogota")).hour
                 if hour not in settings.publish_hours:
                     print(f"Fuera de horario de publicación ({hour}h Bogotá); solo se escaneó.")
@@ -383,6 +476,13 @@ def main() -> int:
                 print("Modo review: usa list, approve y publish para revisar cada oferta.")
         elif args.command == "demo":
             demo(database, pipeline)
+        elif args.command == "informe":
+            if args.collect:
+                collect_metrics(settings, database, days=args.days + 1)
+            report = build_report(database, days=args.days)
+            print(report)
+            if args.save:
+                write_report(report)
         elif args.command == "ai-preview":
             return ai_preview(settings, database, pipeline, args.limit)
         return 0

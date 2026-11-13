@@ -131,9 +131,13 @@ class OfferImageRenderer:
         product_image_bytes: bytes | None = None,
         usd_cop_rate: Decimal | None = None,
         require_image: bool = False,
-        tag: str = "OFERTA DEL DÍA",
+        tag: str | None = None,
     ) -> Path:
         """Vertical 4:5 deal card: big product photo, discount burst, huge price, savings pill."""
+        if tag is None:
+            from app.events import event_tag  # "BLACK FRIDAY" on event days, "OFERTA DEL DÍA" otherwise
+
+            tag = event_tag()
         self.output_dir.mkdir(parents=True, exist_ok=True)
         W, H = POST_CANVAS
         canvas = Image.new("RGB", POST_CANVAS, NAVY)

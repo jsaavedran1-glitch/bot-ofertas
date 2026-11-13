@@ -74,7 +74,11 @@ class Settings:
     telegram_chat_id: str = ""
     min_minutes_between_posts: int = 0
     content_hours: frozenset[int] = frozenset()  # CONTENT_HOURS: the hour's first post is a tip or a news item
-    hourly_posts: tuple[int, ...] = ()  # POSTS_PER_HOUR: when set, it decides how many posts go out each hour
+    hourly_posts: tuple[int, ...] = ()
+    awin_adidas_feed_url: str = ""  # AWIN_ADIDAS_FEED_URL (secret: it carries the Awin API key)
+    event_boost: float = 1.0  # EVENT_BOOST: posts per hour multiplied by this on Black Friday / Cyber Monday
+    countdown_hour: int = 8  # COUNTDOWN_HOUR: "faltan N días" goes out as this hour's first post
+    metrics_hours: frozenset[int] = frozenset({7, 13, 23})  # METRICS_HOURS: when to refresh post reactions  # POSTS_PER_HOUR: when set, it decides how many posts go out each hour
     anthropic_api_key: str = ""
     ai_enabled: bool = True
     ai_review: bool = True
@@ -132,6 +136,10 @@ class Settings:
             telegram_chat_id=os.getenv("TELEGRAM_CHAT_ID", "").strip(),
             min_minutes_between_posts=int(os.getenv("MIN_MINUTES_BETWEEN_POSTS", "0")),
             hourly_posts=hourly,
+            awin_adidas_feed_url=os.getenv("AWIN_ADIDAS_FEED_URL", "").strip(),
+            event_boost=float(os.getenv("EVENT_BOOST", "1")),
+            countdown_hour=int(os.getenv("COUNTDOWN_HOUR", "8")),
+            metrics_hours=frozenset(int(h) for h in os.getenv("METRICS_HOURS", "7,13,23").split(",") if h.strip()),
             content_hours=frozenset(int(h) for h in os.getenv("CONTENT_HOURS", "").split(",") if h.strip()),
             anthropic_api_key=os.getenv("ANTHROPIC_API_KEY", "").strip(),
             ai_review=_as_bool(os.getenv("AI_REVIEW"), True),

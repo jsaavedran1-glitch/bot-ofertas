@@ -93,6 +93,7 @@ _SOURCE_TAGS = {
     "nike": "#nike #nikecolombia",
     "tennis": "#tennis #moda",
     "newegg": "#playstation #psn",
+    "adidas": "#adidas #adidascolombia",
 }
 
 
@@ -126,7 +127,13 @@ def facebook_copy(
     now, before, saved = _prices(deal, usd_cop_rate)
     approx = "≈ " if deal.currency == "USD" and usd_cop_rate is not None else ""
     ai = deal.ai
-    lines = [_hook(deal, usd_cop_rate)]
+    from app.events import active_event
+
+    event = active_event()
+    hook = _hook(deal, usd_cop_rate)
+    if event:  # "🖤 Black Friday: -62% en ..." replaces the hook's own emoji
+        hook = f"🖤 {event.name}: {hook.split(' ', 1)[-1]}"
+    lines = [hook]
     if ai and ai.hook:
         lines.append(ai.hook)
     lines.append("")
@@ -168,10 +175,13 @@ def facebook_copy(
     lines.append("ℹ️ " + " ".join(small))
     lines.extend(["", ai.question if ai and ai.question else _pick(deal, _QUESTIONS, salt="q"), ""])
     # Few, specific hashtags reach further on Facebook than a long list: the brand tag plus two.
-    if ai and ai.hashtags:
+    store_tag = _SOURCE_TAGS.get(deal.source, "").split(" ")[0]
+    if event:  # the event's tag first: it's what people search those days
+        second = ai.hashtags[0] if ai and ai.hashtags else store_tag
+        tags = f"#OjoAlPrecio {event.hashtags[0]} {second}"
+    elif ai and ai.hashtags:
         tags = "#OjoAlPrecio " + " ".join(ai.hashtags)
     else:
-        store_tag = _SOURCE_TAGS.get(deal.source, "").split(" ")[0]
         tags = f"#OjoAlPrecio {store_tag} {trend_tags(deal.external_id, 1)}"
     lines.append(" ".join(tags.split()))
     return "\n".join(lines)

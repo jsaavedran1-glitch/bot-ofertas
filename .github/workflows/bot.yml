@@ -16,9 +16,11 @@ on:
           - review
           - automatic
           - ai-preview
+          - informe
 
 permissions:
   contents: read
+  issues: write  # the weekly report is opened as an issue (GitHub emails it to you)
 
 concurrency:
   group: facebook-deals-publisher
@@ -43,6 +45,8 @@ jobs:
       TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
       # Claude Sonnet 5.5 (opcional): títulos en español, textos y revisión de la imagen. Sin el secret, plantillas.
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      # Feed de productos de Adidas CO en Awin (opcional): sin el secret, la fuente no se usa
+      AWIN_ADIDAS_FEED_URL: ${{ secrets.AWIN_ADIDAS_FEED_URL }}
       # Claude en las publicaciones (textos + revisión visual). "false" lo apaga sin borrar la clave.
       AI_ENABLED: "true"
       META_GRAPH_API_VERSION: "v26.0"
@@ -55,8 +59,11 @@ jobs:
       POSTS_PER_HOUR: "8:3,9:5,10:4,11:4,12:5,13:4,14:4,15:4,16:4,17:5,18:5,19:5,20:4,21:4,22:3"
       # Dato útil o noticia (alternados) como primera publicación de estas horas; allá fueron lo más comentado
       CONTENT_HOURS: "9,12,17"
-      # Tope de seguridad diario (la suma de arriba es 63)
-      MAX_POSTS_PER_DAY: "70"
+      # Tope de seguridad diario (la suma de arriba es 63; con EVENT_BOOST, ~82)
+      MAX_POSTS_PER_DAY: "90"
+      # Black Friday (27-29 nov) y Cyber Monday (30 nov): 30 % más publicaciones por hora, etiqueta y hashtags
+      # del evento. Del 20 al 26 de nov, cuenta regresiva a las 8 h (app/events.py).
+      EVENT_BOOST: "1.3"
       # Separación mínima entre publicaciones de ejecuciones seguidas
       MIN_MINUTES_BETWEEN_POSTS: "4"
       LINK_IN_COMMENT: "true"
@@ -104,5 +111,15 @@ jobs:
             dry-run)   python main.py run --dry-run ;;
             review)    python main.py scan ;;
             ai-preview) python main.py ai-preview --limit 12 ;;
+            informe)   python main.py informe --collect --save ;;
             *) echo "Modo no válido: $REQUESTED_MODE"; exit 2 ;;
           esac
+
+      - name: Publicar informe semanal
+        if: success() && hashFiles('generated/informe_semanal.md') != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh issue create --repo "$GITHUB_REPOSITORY" \
+            --title "Informe semanal Ojo al Precio · $(TZ=America/Bogota date +%F)" \
+            --body-file generated/informe_semanal.md

@@ -198,6 +198,18 @@ class Database:
             )
             """,
             f"""
+            CREATE TABLE IF NOT EXISTS post_metrics (
+              post_id TEXT PRIMARY KEY,
+              kind TEXT NOT NULL,
+              source TEXT NOT NULL,
+              published_at {timestamp_type} NOT NULL,
+              reactions INTEGER NOT NULL,
+              comments INTEGER NOT NULL,
+              shares INTEGER NOT NULL,
+              updated_at {timestamp_type} NOT NULL
+            )
+            """,
+            f"""
             CREATE TABLE IF NOT EXISTS media_assets (
               name TEXT PRIMARY KEY,
               kind TEXT NOT NULL,
@@ -427,6 +439,54 @@ class Database:
                 when = datetime.fromisoformat(when.replace("Z", "+00:00"))
             out.append((row["kind"], row["content_key"], when))
         return out
+
+    def posts_since(self, since: datetime) -> list[tuple[str, str, str, datetime]]:
+        """(post_id, kind, source, published_at) of every Facebook post since `since` (a Top 5 once)."""
+        cutoff = since.astimezone(timezone.utc).isoformat()
+        queries = (
+            "SELECT p.external_post_id AS post_id, p.platform AS kind, c.source AS source, p.published_at AS at"
+            " FROM publications p JOIN candidates c ON c.id = p.candidate_id WHERE p.published_at>=?",
+            "SELECT external_post_id AS post_id, 'promo' AS kind, promo_key AS source, published_at AS at"
+            " FROM promo_publications WHERE published_at>=?",
+            "SELECT external_post_id AS post_id, kind, 'contenido' AS source, published_at AS at"
+            " FROM content_publications WHERE published_at>=?",
+        )
+        kinds = {"facebook": "oferta", "facebook_reel": "reel", "facebook_top": "top5"}
+        posts: dict[str, tuple[str, str, str, datetime]] = {}
+        with self._connection() as conn:
+            for sql in queries:
+                for row in conn.execute(self._sql(sql), (cutoff,)).fetchall():
+                    post_id = str(row["post_id"]).split(":")[0]  # Top 5 rows carry ":n"
+                    kind = kinds.get(row["kind"], row["kind"])
+                    source = "varias" if kind == "top5" else str(row["source"]).split(":")[0]
+                    when = row["at"]
+                    if isinstance(when, str):
+                        when = datetime.fromisoformat(when.replace("Z", "+00:00"))
+                    posts.setdefault(post_id, (post_id, kind, source, when))
+        return sorted(posts.values(), key=lambda p: p[3])
+
+    def save_metrics(self, rows: list[tuple[str, str, str, datetime, int, int, int]]) -> None:
+        now = utc_now().isoformat()
+        with self._transaction() as conn:
+            for post_id, kind, source, at, reactions, comments, shares in rows:
+                conn.execute(
+                    self._sql(
+                        "INSERT INTO post_metrics(post_id, kind, source, published_at, reactions, comments, shares, updated_at)"
+                        " VALUES(?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(post_id) DO UPDATE SET reactions=excluded.reactions,"
+                        " comments=excluded.comments, shares=excluded.shares, updated_at=excluded.updated_at"
+                    ),
+                    (post_id, kind, source, at.astimezone(timezone.utc).isoformat(), reactions, comments, shares, now),
+                )
+
+    def metrics_between(self, start: datetime, end: datetime) -> list[dict]:
+        sql = self._sql("SELECT * FROM post_metrics WHERE published_at>=? AND published_at<? ORDER BY published_at")
+        with self._connection() as conn:
+            rows = [self._dict(r) for r in conn.execute(
+                sql, (start.astimezone(timezone.utc).isoformat(), end.astimezone(timezone.utc).isoformat())).fetchall()]
+        for row in rows:
+            if isinstance(row["published_at"], str):
+                row["published_at"] = datetime.fromisoformat(row["published_at"].replace("Z", "+00:00"))
+        return rows
 
     def content_published_this_hour(self) -> bool:
         local = utc_now().astimezone(ZoneInfo("America/Bogota"))
