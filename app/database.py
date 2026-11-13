@@ -194,6 +194,34 @@ class Database:
         with self._transaction() as conn:
             for statement in statements:
                 conn.execute(statement)
+        self._add_column("candidates", "rating", "REAL")
+        self._add_column("candidates", "reviews", "INTEGER")
+
+    def _add_column(self, table: str, column: str, kind: str) -> None:
+        """Idempotent ALTER TABLE ... ADD COLUMN (SQLite has no IF NOT EXISTS for columns)."""
+        with self._transaction() as conn:
+            if self.is_postgres:
+                conn.execute(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {column} {kind}")
+            elif column not in {row[1] for row in conn.execute(f"PRAGMA table_info({table})").fetchall()}:
+                conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {kind}")
+
+    def is_lowest_price(self, deal: DealObservation, days: int = 30, min_tracked_days: int = 14) -> bool:
+        """True only if we've tracked the item for `min_tracked_days`+ and its price was higher at some point."""
+        since = (utc_now() - timedelta(days=days)).isoformat()
+        sql = self._sql(
+            "SELECT MIN(price_minor) AS lo, MAX(price_minor) AS hi, MIN(observed_at) AS first"
+            " FROM price_observations WHERE source=? AND external_id=? AND currency=? AND observed_at>=?"
+        )
+        with self._connection() as conn:
+            row = self._dict(conn.execute(sql, (deal.source, deal.external_id, deal.currency, since)).fetchone())
+        if not row or row["lo"] is None:
+            return False
+        first = row["first"] if isinstance(row["first"], datetime) else datetime.fromisoformat(str(row["first"]).replace("Z", "+00:00"))
+        return (
+            utc_now() - first >= timedelta(days=min_tracked_days)
+            and deal.price_minor <= int(row["lo"])
+            and int(row["hi"]) > deal.price_minor
+        )
 
     def upsert_product(self, deal: DealObservation) -> None:
         now = utc_now().isoformat()
@@ -267,8 +295,8 @@ class Database:
             """
             INSERT INTO candidates(id, source, external_id, title, price_minor,
               original_price_minor, currency, evidence, url, image_url, affiliate,
-              shipping_note, observed_at, score, status, created_at, updated_at)
-            VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)
+              shipping_note, observed_at, score, status, created_at, updated_at, rating, reviews)
+            VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?)
             ON CONFLICT(id) DO NOTHING
             """
         )
@@ -278,18 +306,19 @@ class Database:
                 deal.original_price_minor, deal.currency, deal.evidence.value, deal.url,
                 deal.image_url, int(deal.affiliate), deal.shipping_note,
                 deal.observed_at.astimezone(timezone.utc).isoformat(), candidate_score, now, now,
+                deal.rating, deal.reviews,
             ))
             if cursor.rowcount == 1:
                 return True
             # Seen again: refresh pending/approved ones, and bring expired ones back to pending.
             cursor = conn.execute(
                 self._sql(
-                    "UPDATE candidates SET observed_at=?, url=?, image_url=?, affiliate=?, updated_at=?,"
+                    "UPDATE candidates SET observed_at=?, url=?, image_url=?, affiliate=?, rating=?, reviews=?, updated_at=?,"
                     " status=CASE WHEN status='expired' THEN 'pending' ELSE status END"
                     " WHERE id=? AND status IN ('pending','approved','expired')"
                 ),
                 (deal.observed_at.astimezone(timezone.utc).isoformat(), deal.url, deal.image_url,
-                 int(deal.affiliate), now, deal.candidate_id),
+                 int(deal.affiliate), deal.rating, deal.reviews, now, deal.candidate_id),
             )
             return False
 
@@ -381,6 +410,8 @@ class Database:
             ), currency=data["currency"], evidence=DiscountEvidence(data["evidence"]),
             url=data["url"], image_url=data["image_url"], affiliate=bool(data["affiliate"]),
             shipping_note=data["shipping_note"], observed_at=observed,
+            rating=float(data["rating"]) if data.get("rating") is not None else None,
+            reviews=int(data["reviews"]) if data.get("reviews") is not None else None,
         )
         return Candidate(id=data["id"], deal=deal, score=int(data["score"]),
                          status=data["status"], created_at=created)

@@ -24,6 +24,22 @@ class DatabaseTests(unittest.TestCase):
             observed_at=observed_at or datetime.now(timezone.utc),
         )
 
+    def test_lowest_price_needs_two_weeks_of_history_and_a_real_drop(self):
+        now = datetime.now(timezone.utc)
+        for days, price in ((10, 95_000), (5, 90_000)):
+            self.db.record_observation(self.deal(price=price, observed_at=now - timedelta(days=days)))
+        self.assertFalse(self.db.is_lowest_price(self.deal(price=80_000)))  # only 10 days tracked
+        self.db.record_observation(self.deal(price=99_000, observed_at=now - timedelta(days=20)))
+        self.assertTrue(self.db.is_lowest_price(self.deal(price=80_000)))
+        self.assertFalse(self.db.is_lowest_price(self.deal(price=91_000)))  # 90.000 seen 5 days ago
+
+    def test_rating_is_stored_with_the_candidate(self):
+        from dataclasses import replace
+        deal = replace(self.deal(), rating=4.7, reviews=120)
+        self.db.create_candidate(deal, 40)
+        stored = [c for c in self.db.list_candidates("pending") if c.deal.external_id == "A"][0].deal
+        self.assertEqual((stored.rating, stored.reviews), (4.7, 120))
+
     def test_candidate_deduplicates_and_claims_once(self):
         deal = self.deal()
         self.assertTrue(self.db.create_candidate(deal, 40))

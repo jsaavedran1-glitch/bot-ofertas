@@ -182,12 +182,14 @@ class ColombiaStoreTests(unittest.TestCase):
             "objectID": "7705946474559", "name_text_es": "TV KALLEY 60", "instockflag_boolean": True,
             "discountprice_double": 1699900.0, "baseprice_cop_string": 3899900.0,
             "url_es_string": "/tv-kalley-60/p/7705946474559", "img-750wx750h_string": "https://cdn/x.webp",
+            "averagescore_double": 4.6, "totalreviews_int": 37, "reviewavgrating_double": 0.0,
         }
         session = _Session({"hits": [hit]})
         src = AlgoliaStoreSource("alkosto", "alkostoIndexAlgoliaPRD", "https://www.alkosto.com", session=session, queries=("tv",))
         deal = src.fetch()[0]
         self.assertEqual(deal.url, "https://www.alkosto.com/tv-kalley-60/p/7705946474559")
         self.assertEqual(deal.discount_pct, 56)
+        self.assertEqual((deal.rating, deal.reviews), (4.6, 37))
         self.assertEqual(src.revalidate(deal).price_minor, deal.price_minor)
         url, kwargs = session.calls[-1]
         self.assertIn("/indexes/alkostoIndexAlgoliaPRD/query", url)

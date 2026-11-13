@@ -22,7 +22,8 @@ def _session(session: requests.Session | None) -> requests.Session:
     return session
 
 
-def _deal(source: str, external_id: str, title: str, price: float, before: float, url: str, image: str) -> DealObservation | None:
+def _deal(source: str, external_id: str, title: str, price: float, before: float, url: str, image: str,
+          rating: float | None = None, reviews: int | None = None) -> DealObservation | None:
     if not (title and url and image) or price <= 0 or before <= price:
         return None
     return DealObservation(
@@ -38,6 +39,8 @@ def _deal(source: str, external_id: str, title: str, price: float, before: float
         available=True,
         shipping_note="Envío según destino",
         observed_at=datetime.now(timezone.utc),
+        rating=rating,
+        reviews=reviews,
     )
 
 
@@ -154,6 +157,8 @@ class AlgoliaStoreSource(_StoreSource):
         return _deal(
             self.source_name, str(hit["objectID"]), hit.get("name_text_es", ""), price, before,
             f"{self.base_url}{path}" if path else "", hit.get("img-750wx750h_string", ""),
+            rating=float(hit["averagescore_double"]) if hit.get("averagescore_double") else None,
+            reviews=int(hit["totalreviews_int"]) if hit.get("totalreviews_int") else None,
         )
 
     def search(self, query: str) -> list[DealObservation]:

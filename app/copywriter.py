@@ -6,7 +6,7 @@ import hashlib
 import os
 from zoneinfo import ZoneInfo
 
-from app.models import DealObservation, DiscountEvidence, from_minor, money, store_name
+from app.models import DealObservation, DiscountEvidence, from_minor, money, rating_text, store_name
 
 
 def _short(title: str, limit: int = 45) -> str:
@@ -31,6 +31,11 @@ def _hook(deal: DealObservation, usd_cop_rate: Decimal | None = None) -> str:
     short = _short(deal.title)
     now, before, saved = _prices(deal, usd_cop_rate)
     pct = deal.discount_pct
+    if deal.lowest_30d:
+        return _pick(deal, [
+            f"🔻 ¡Precio más bajo en 30 días! {short} a {now}",
+            f"🔻 {short} nunca estuvo tan barato este mes: {now}",
+        ])
     if deal.evidence != DiscountEvidence.OFFICIAL_ORIGINAL:
         # Discount vs. our own price history: never claim a store "before" price.
         return _pick(deal, [
@@ -110,6 +115,11 @@ def facebook_copy(
         lines.append(f"✅ Precio típico observado {approx}{before} → Hoy {approx}{now} (-{deal.discount_pct}%)")
     else:
         lines.append(f"✅ Precio: {approx}{now}")
+    if deal.lowest_30d:
+        lines.append("🔻 Es el precio más bajo que hemos visto en los últimos 30 días")
+    stars = rating_text(deal)
+    if stars:
+        lines.append(f"⭐ {stars} en {store_name(deal.source)}")
     lines.append(f"🛍️ {deal.title}")
     lines.append(f"🏪 {store_name(deal.source)}" + (f" · 🚚 {deal.shipping_note}" if deal.shipping_note else ""))
     lines.append("👇 Link en el primer comentario" if link_in_comment else f"👉 {deal.url}")

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import timedelta
 from pathlib import Path
 import sys
@@ -87,6 +87,10 @@ class OfferPipeline:
                     report.candidates_created.append(deal.candidate_id)
         return report
 
+    def _with_insights(self, candidate: Candidate) -> Candidate:
+        """Attach facts computed from our own data (e.g. lowest price in 30 days) before rendering."""
+        return replace(candidate, deal=replace(candidate.deal, lowest_30d=self.database.is_lowest_price(candidate.deal)))
+
     def render(self, candidate: Candidate, require_image: bool = False) -> tuple[Path, str]:
         rate = self.rate_provider.usd_to_cop()
         image = self.renderer.render(candidate.deal, candidate.id, usd_cop_rate=rate, require_image=require_image)
@@ -121,6 +125,7 @@ class OfferPipeline:
             raise ValueError("La oferta cambió desde su aprobación; escanéala y apruébala nuevamente.")
         if not self.database.reserve_for_publish(candidate_id, self.settings.max_posts_per_day):
             raise ValueError("No se pudo reservar la oferta o se alcanzó el límite diario.")
+        candidate = self._with_insights(candidate)
         try:
             publisher = publisher or FacebookPublisher(
                 self.settings.fb_page_id,
@@ -193,7 +198,7 @@ class OfferPipeline:
             fresh = self._revalidate(c)
             if fresh and fresh.available and fresh.price_minor == c.deal.price_minor and fresh.url == c.deal.url:
                 still_valid.append(c)
-        items = pick_top(still_valid)
+        items = [self._with_insights(c) for c in pick_top(still_valid)]
         if len(items) < MIN_ITEMS:
             return None
         rate = self.rate_provider.usd_to_cop()
@@ -237,6 +242,7 @@ class OfferPipeline:
         for candidate_id in candidate_ids:
             candidate = self.database.get_candidate(candidate_id)
             if candidate:
+                candidate = self._with_insights(candidate)
                 image, caption = self.render(candidate)
                 results.append((candidate, image, caption))
         return results

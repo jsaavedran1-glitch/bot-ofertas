@@ -117,6 +117,44 @@ class ReelRenderTests(unittest.TestCase):
             self.assertAlmostEqual(float(info[1]), 9.0, delta=0.2)
 
 
+class InsightTests(unittest.TestCase):
+    def deal(self, **extra):
+        return DealObservation(
+            source="alkosto", external_id="I1", title="Audífonos Sony", price_minor=349_900,
+            original_price_minor=999_900, evidence=DiscountEvidence.OFFICIAL_ORIGINAL,
+            currency="COP", url="https://example.com/i1", **extra,
+        )
+
+    def test_rating_shows_only_when_well_rated_with_enough_reviews(self):
+        from app.models import rating_text
+        self.assertEqual(rating_text(self.deal(rating=4.85, reviews=1648)), "4,8 (1.648 opiniones)")
+        self.assertIsNone(rating_text(self.deal(rating=4.9, reviews=3)))
+        self.assertIsNone(rating_text(self.deal(rating=3.6, reviews=500)))
+        self.assertIsNone(rating_text(self.deal()))
+
+    def test_caption_mentions_lowest_price_and_rating_only_when_true(self):
+        text = facebook_copy(self.deal(rating=4.8, reviews=85, lowest_30d=True), None, True)
+        self.assertIn("precio más bajo", text.lower())
+        self.assertIn("⭐ 4,8 (85 opiniones) en Alkosto", text)
+        plain = facebook_copy(self.deal(), None, True)
+        self.assertNotIn("más bajo", plain.lower())
+        self.assertNotIn("⭐", plain)
+
+    def test_reel_opens_with_lowest_price_and_big_tickets_with_savings(self):
+        from app.reel_renderer import reel_hook
+        self.assertEqual(reel_hook(self.deal(lowest_30d=True), "$349.900")[1], ["PRECIO MÁS BAJO", "EN 30 DÍAS"])
+        self.assertIn("$650.000", " ".join(reel_hook(self.deal(), "$349.900", "$650.000")[1]))
+
+    def test_reel_frame_keeps_the_9_16_canvas(self):
+        from app.reel_renderer import ReelRenderer
+        buffer = BytesIO()
+        Image.new("RGB", (300, 300), "red").save(buffer, format="PNG")
+        with tempfile.TemporaryDirectory() as directory:
+            frame = ReelRenderer(Path(directory)).render_frame(
+                self.deal(rating=4.8, reviews=85, lowest_30d=True), 4.9, product_image_bytes=buffer.getvalue())
+            self.assertEqual(frame.size, (1080, 1920))
+
+
 class PromoStoryTests(unittest.TestCase):
     def test_square_image_becomes_vertical_story(self):
         from app.reel_renderer import ReelRenderer

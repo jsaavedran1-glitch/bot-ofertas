@@ -38,6 +38,13 @@ def money(value: int, currency: str) -> str:
 STORE_NAMES = {"mercadolibre": "Mercado Libre", "exito": "Éxito"}
 
 
+def rating_text(deal: "DealObservation") -> str | None:
+    """'4,8 (648 opiniones)' when the store's rating is worth showing (4+ stars, 5+ reviews)."""
+    if deal.rating is None or deal.reviews is None or deal.reviews < 5 or deal.rating < 4.0:
+        return None
+    return f"{deal.rating:.1f}".replace(".", ",") + f" ({deal.reviews:,} opiniones)".replace(",", ".")
+
+
 def store_name(source: str) -> str:
     return STORE_NAMES.get(source, source.replace("_", " ").title())
 
@@ -61,6 +68,9 @@ class DealObservation:
     affiliate: bool = False
     shipping_note: str = ""
     observed_at: datetime = field(default_factory=utc_now)
+    rating: float | None = None  # store's average review score (0-5)
+    reviews: int | None = None  # number of reviews behind `rating`
+    lowest_30d: bool = False  # set at publish time from our own price history; not stored
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "source", self.source.strip().lower())

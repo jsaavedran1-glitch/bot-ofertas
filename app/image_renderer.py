@@ -13,7 +13,7 @@ from zoneinfo import ZoneInfo
 import requests
 from PIL import Image, ImageDraw, ImageFont, ImageOps, UnidentifiedImageError
 
-from app.models import DealObservation, DiscountEvidence, from_minor, money, store_name, to_minor
+from app.models import DealObservation, DiscountEvidence, from_minor, money, rating_text, store_name, to_minor
 
 
 CANVAS = (1080, 1080)  # square: promo grid
@@ -105,14 +105,8 @@ class OfferImageRenderer:
             product = ImageOps.contain(product, (card[2] - card[0] - 120, card[3] - card[1] - 130), Image.Resampling.LANCZOS)
             cx, cy = (card[0] + card[2]) // 2, (card[1] + card[3]) // 2 - 28
             canvas.paste(product, (cx - product.width // 2, cy - product.height // 2), product if product.mode == "RGBA" else None)
-        # Real urgency: when the price was checked (no fake countdowns)
-        checked = deal.observed_at.astimezone(ZoneInfo("America/Bogota")).strftime("%H:%M")
-        stamp = f"Precio verificado hoy {checked}"
-        sfont = self._font(24, bold=True)
-        sw = int(draw.textlength(stamp, font=sfont))
-        draw.rounded_rectangle((card[0] + 24, card[3] - 58, card[0] + 24 + sw + 74, card[3] - 18), radius=20, fill="#EEF2F7")
-        self._paste_emoji(canvas, (card[0] + 34, card[3] - 54), "⏰", 32)
-        draw.text((card[0] + 74, card[3] - 38), stamp, anchor="lm", font=sfont, fill="#334155")
+        self._stamp(canvas, draw, deal, card)
+        self._insight_badges(canvas, draw, deal, card)
 
         # Discount burst overlapping the card's top-right corner
         self._burst(draw, (W - 160, 232), 128, f"-{deal.discount_pct}%")
@@ -173,6 +167,33 @@ class OfferImageRenderer:
         canvas.save(temporary, format="PNG", optimize=True, compress_level=9)
         temporary.replace(output)
         return output
+
+    def _stamp(self, canvas: Image.Image, draw: ImageDraw.ImageDraw, deal: DealObservation, card) -> None:
+        """Real urgency: when the price was checked (no fake countdowns). Bottom-left of the card."""
+        checked = deal.observed_at.astimezone(ZoneInfo("America/Bogota")).strftime("%H:%M")
+        stamp = f"Precio verificado hoy {checked}"
+        sfont = self._font(24, bold=True)
+        sw = int(draw.textlength(stamp, font=sfont))
+        draw.rounded_rectangle((card[0] + 24, card[3] - 58, card[0] + 24 + sw + 74, card[3] - 18), radius=20, fill="#EEF2F7")
+        self._paste_emoji(canvas, (card[0] + 34, card[3] - 54), "⏰", 32)
+        draw.text((card[0] + 74, card[3] - 38), stamp, anchor="lm", font=sfont, fill="#334155")
+
+    def _insight_badges(self, canvas: Image.Image, draw: ImageDraw.ImageDraw, deal: DealObservation, card) -> None:
+        """Lowest-price ribbon (top-left) and store rating pill (bottom-right), only when true."""
+        if deal.lowest_30d:
+            text, font = "PRECIO MÁS BAJO EN 30 DÍAS", self._font(28, bold=True)
+            w = int(draw.textlength(text, font=font)) + 92
+            draw.rounded_rectangle((card[0] + 24, card[1] + 24, card[0] + 24 + w, card[1] + 80), radius=28, fill=YELLOW)
+            self._paste_emoji(canvas, (card[0] + 38, card[1] + 32), "🔻", 40)
+            draw.text((card[0] + 86, card[1] + 52), text, anchor="lm", font=font, fill=NAVY)
+        stars = rating_text(deal)
+        if stars:
+            font = self._font(26, bold=True)
+            w = int(draw.textlength(stars, font=font)) + 78
+            x1 = card[2] - 24
+            draw.rounded_rectangle((x1 - w, card[3] - 58, x1, card[3] - 18), radius=20, fill="#FFF4CC")
+            self._paste_emoji(canvas, (x1 - w + 12, card[3] - 54), "⭐", 32)
+            draw.text((x1 - w + 52, card[3] - 38), stars, anchor="lm", font=font, fill="#7A5A00")
 
     def _burst(self, draw: ImageDraw.ImageDraw, center: tuple[int, int], radius: int, text: str) -> None:
         """Red starburst sticker with the discount."""
