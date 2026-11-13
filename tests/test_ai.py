@@ -48,19 +48,21 @@ AMAZON = DealObservation(
     price_minor=8_000, original_price_minor=20_000, evidence=DiscountEvidence.OFFICIAL_ORIGINAL,
     currency="USD", url="https://amazon.com/x", affiliate=True,
 )
-GOOD = {
-    "nombre_corto": "Cafetera espresso Philips Baristina",
-    "titulo_es": "Cafetera espresso Philips Baristina de 16 bar",
+NAMES = {"nombre_corto": "Cafetera espresso Philips Baristina",
+         "titulo_es": "Cafetera espresso Philips Baristina de 16 bar"}
+ANALYSIS = {
+    "aprobada": True, "problema": "",
     "gancho": "☕ Tu espresso de cafetería en casa, en segundos",
     "beneficios": ["Muele y prepara el café al instante", "Presión de 16 bar para buena crema"],
     "pregunta": "¿Eres de espresso o de tinto? ☕",
+    "hashtags": ["#cafe", "#BlackFriday"],
 }
 
 
-class ClaudeCopyTests(unittest.TestCase):
+class ClaudeNamesTests(unittest.TestCase):
     def test_request_uses_sonnet_5_5_without_thinking_and_a_json_schema(self):
-        client = FakeClient(GOOD)
-        copy = ClaudeHelper(client=client).write_copy(AMAZON)
+        client = FakeClient(NAMES)
+        names = ClaudeHelper(client=client).write_names(AMAZON)
         call = client.calls[0]
         self.assertEqual(call["model"], MODEL)
         self.assertEqual(MODEL, "claude-sonnet-5-5")
@@ -69,38 +71,14 @@ class ClaudeCopyTests(unittest.TestCase):
         self.assertEqual(call["output_config"]["format"]["type"], "json_schema")
         self.assertEqual((call["betas"], call["fallbacks"]), (["server-side-fallback-2026-07-01"], "default"))
         self.assertIn(AMAZON.title, call["messages"][0]["content"])
-        self.assertEqual(copy.short_name, "Cafetera espresso Philips Baristina")
-        self.assertEqual(len(copy.points), 2)
-
-    def test_prices_percentages_and_invented_numbers_are_dropped(self):
-        bad = dict(GOOD, gancho="🔥 ¡60% menos hoy!", pregunta="¿La comprarías a $300.000?",
-                   beneficios=["Prepara 40 tazas al día", "Presión de 16 bar"])
-        copy = ClaudeHelper(client=FakeClient(bad)).write_copy(AMAZON)
-        self.assertIsNone(copy.hook)
-        self.assertIsNone(copy.question)
-        self.assertEqual(copy.points, ("Presión de 16 bar",))  # 16 is in the title, 40 is not
+        self.assertEqual(names.short_name, "Cafetera espresso Philips Baristina")
 
     def test_refusal_or_api_error_falls_back_to_templates(self):
-        self.assertIsNone(ClaudeHelper(client=FakeClient(GOOD, stop_reason="refusal")).write_copy(AMAZON))
-        self.assertIsNone(ClaudeHelper(client=FakeClient(error=RuntimeError("down"))).write_copy(AMAZON))
-
-    def test_caption_uses_spanish_title_benefits_and_question_but_our_prices(self):
-        deal = replace(AMAZON, ai=ClaudeHelper(client=FakeClient(GOOD)).write_copy(AMAZON))
-        text = facebook_copy(deal, None, True)
-        self.assertIn("☕ Tu espresso de cafetería en casa, en segundos", text.splitlines()[1])
-        self.assertIn("🛍️ Cafetera espresso Philips Baristina de 16 bar", text)
-        self.assertIn("✔️ Muele y prepara el café al instante", text)
-        self.assertIn("¿Eres de espresso o de tinto? ☕", text)
-        self.assertIn("US$80.00", text)  # price lines still come from our data
-        self.assertEqual(display_name(deal), "Cafetera espresso Philips Baristina")
-
-    def test_store_titles_in_spanish_are_kept(self):
-        alkosto = replace(AMAZON, source="alkosto", currency="COP", title="Freidora de Aire MIDEA 4.5 L",
-                          ai=AiCopy(title_es="Freidora de aire Midea de 4.5 L"))
-        self.assertIn("🛍️ Freidora de Aire MIDEA 4.5 L", facebook_copy(alkosto, None, True))
+        self.assertIsNone(ClaudeHelper(client=FakeClient(NAMES, stop_reason="refusal")).write_names(AMAZON))
+        self.assertIsNone(ClaudeHelper(client=FakeClient(error=RuntimeError("down"))).write_names(AMAZON))
 
 
-class ClaudeReviewTests(unittest.TestCase):
+class ClaudeAnalysisTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.image = Path(self.temp.name) / "post.png"
@@ -109,28 +87,77 @@ class ClaudeReviewTests(unittest.TestCase):
     def tearDown(self):
         self.temp.cleanup()
 
-    def test_rejection_blocks_and_sends_a_downscaled_image(self):
-        client = FakeClient({"aprobada": False, "problema": "La foto es de una nevera, no de una cafetera"})
-        approved, problem = ClaudeHelper(client=client).review_image(self.image, AMAZON)
-        self.assertFalse(approved)
-        self.assertIn("nevera", problem)
-        block = client.calls[0]["messages"][0]["content"][0]
-        self.assertEqual(block["source"]["media_type"], "image/jpeg")
+    def test_writes_caption_text_and_hashtags_from_the_image(self):
+        client = FakeClient(ANALYSIS)
+        approved, _, copy = ClaudeHelper(client=client).analyze_post(self.image, AMAZON, ("#BlackFriday", "#Navidad"))
+        self.assertTrue(approved)
+        self.assertEqual(copy.hook, "☕ Tu espresso de cafetería en casa, en segundos")
+        self.assertEqual(copy.hashtags, ("#cafe", "#BlackFriday"))
+        content = client.calls[0]["messages"][0]["content"]
+        self.assertEqual(content[0]["source"]["media_type"], "image/jpeg")
+        self.assertIn("#BlackFriday, #Navidad", content[1]["text"])
 
-    def test_review_approves_when_claude_is_unavailable(self):
-        self.assertEqual(ClaudeHelper(client=FakeClient(error=RuntimeError("down"))).review_image(self.image, AMAZON), (True, ""))
+    def test_prices_invented_numbers_and_bad_hashtags_are_dropped(self):
+        bad = dict(ANALYSIS, gancho="🔥 ¡60% menos hoy!", pregunta="¿La comprarías a $300.000?",
+                   beneficios=["Prepara 40 tazas al día", "Presión de 16 bar"],
+                   hashtags=["#ofertas", "#OjoAlPrecio", "dos palabras", "#ahorra50", "cafetera", "#cafe", "#extra"])
+        _, _, copy = ClaudeHelper(client=FakeClient(bad)).analyze_post(self.image, AMAZON)
+        self.assertIsNone(copy.hook)
+        self.assertIsNone(copy.question)
+        self.assertEqual(copy.points, ("Presión de 16 bar",))  # 16 is in the title, 40 is not
+        self.assertEqual(copy.hashtags, ("#cafetera", "#cafe"))
+
+    def test_rejection_blocks_and_unavailable_claude_approves(self):
+        rejected = dict(ANALYSIS, aprobada=False, problema="La foto es de una nevera, no de una cafetera")
+        approved, problem, copy = ClaudeHelper(client=FakeClient(rejected)).analyze_post(self.image, AMAZON)
+        self.assertEqual((approved, copy), (False, None))
+        self.assertIn("nevera", problem)
+        self.assertEqual(ClaudeHelper(client=FakeClient(error=RuntimeError("x"))).analyze_post(self.image, AMAZON),
+                         (True, "", None))
+
+
+class ClaudeCaptionTests(unittest.TestCase):
+    def test_caption_uses_claude_text_spanish_title_and_three_hashtags_but_our_prices(self):
+        from app.ai import merge_copy
+        names = AiCopy(short_name="Cafetera espresso Philips Baristina", title_es="Cafetera espresso Philips Baristina de 16 bar")
+        text = AiCopy(hook="☕ Tu espresso de cafetería en casa", points=("Muele y prepara al instante",),
+                      question="¿Espresso o tinto?", hashtags=("#cafe", "#BlackFriday"))
+        deal = replace(AMAZON, ai=merge_copy(names, text))
+        caption = facebook_copy(deal, None, True)
+        self.assertIn("☕ Tu espresso de cafetería en casa", caption.splitlines()[1])
+        self.assertIn("🛍️ Cafetera espresso Philips Baristina de 16 bar", caption)
+        self.assertIn("✔️ Muele y prepara al instante", caption)
+        self.assertIn("¿Espresso o tinto?", caption)
+        self.assertEqual(caption.splitlines()[-1], "#OjoAlPrecio #cafe #BlackFriday")
+        self.assertIn("US$80.00", caption)  # price lines still come from our data
+        self.assertEqual(display_name(deal), "Cafetera espresso Philips Baristina")
+
+    def test_without_claude_only_three_hashtags(self):
+        import os
+        from unittest import mock
+        with mock.patch.dict(os.environ, {"TRENDING_TAGS": "BlackFriday,Navidad"}):
+            tags = facebook_copy(AMAZON, None, True).splitlines()[-1].split()
+        self.assertEqual(tags[:2], ["#OjoAlPrecio", "#amazon"])
+        self.assertEqual(len(tags), 3)
+
+    def test_store_titles_in_spanish_are_kept(self):
+        alkosto = replace(AMAZON, source="alkosto", currency="COP", title="Freidora de Aire MIDEA 4.5 L",
+                          ai=AiCopy(title_es="Freidora de aire Midea de 4.5 L"))
+        self.assertIn("🛍️ Freidora de Aire MIDEA 4.5 L", facebook_copy(alkosto, None, True))
 
 
 class StubClaude:
     def __init__(self, approve=True):
         self.approve, self.reviewed = approve, []
 
-    def write_copy(self, deal):
-        return AiCopy(short_name="Producto de prueba", hook="✨ Lo que buscabas", question="¿Te lo llevas?")
+    def write_names(self, deal):
+        return AiCopy(short_name="Producto de prueba")
 
-    def review_image(self, image, deal):
+    def analyze_post(self, image, deal, trending=()):
         self.reviewed.append(image)
-        return (True, "") if self.approve else (False, "foto equivocada")
+        if not self.approve:
+            return False, "foto equivocada", None
+        return True, "", AiCopy(hook="✨ Lo que buscabas", question="¿Te lo llevas?", hashtags=("#tenis",))
 
 
 class ClaudePipelineTests(unittest.TestCase):
@@ -165,6 +192,7 @@ class ClaudePipelineTests(unittest.TestCase):
         caption = session.call[1]["data"]["caption"]
         self.assertIn("✨ Lo que buscabas", caption)
         self.assertIn("¿Te lo llevas?", caption)
+        self.assertIn("#OjoAlPrecio #tenis", caption)
         self.assertEqual(len(claude.reviewed), 1)
 
     def test_rejected_image_is_not_published(self):

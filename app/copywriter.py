@@ -87,6 +87,11 @@ _SOURCE_TAGS = {
 }
 
 
+def trending_hashtags() -> tuple[str, ...]:
+    """This week's tags from TRENDING_TAGS (Facebook's Inspiration Hub), offered to Claude to pick from."""
+    return tuple(f"#{t.strip().lstrip('#').replace(' ', '')}" for t in os.getenv("TRENDING_TAGS", "").split(",") if t.strip())
+
+
 def trend_tags(seed: str, count: int = 3) -> str:
     """`count` hashtags from TRENDING_TAGS (comma list, e.g. from Facebook's Inspiration Hub), varied per post."""
     tags = [t.strip().lstrip("#").replace(" ", "") for t in os.getenv("TRENDING_TAGS", "").split(",") if t.strip()]
@@ -144,6 +149,11 @@ def facebook_copy(
                      else "Enlace afiliado: podemos recibir una comisión sin costo adicional para ti.")
     lines.append("ℹ️ " + " ".join(small))
     lines.extend(["", ai.question if ai and ai.question else _pick(deal, _QUESTIONS, salt="q"), ""])
-    tags = f"#OjoAlPrecio #ofertas {_SOURCE_TAGS.get(deal.source, '')} {trend_tags(deal.external_id, 2)}"
+    # Few, specific hashtags reach further on Facebook than a long list: the brand tag plus two.
+    if ai and ai.hashtags:
+        tags = "#OjoAlPrecio " + " ".join(ai.hashtags)
+    else:
+        store_tag = _SOURCE_TAGS.get(deal.source, "").split(" ")[0]
+        tags = f"#OjoAlPrecio {store_tag} {trend_tags(deal.external_id, 1)}"
     lines.append(" ".join(tags.split()))
     return "\n".join(lines)

@@ -95,6 +95,7 @@ class AiCopy:
     hook: str | None = None
     points: tuple[str, ...] = ()
     question: str | None = None
+    hashtags: tuple[str, ...] = ()  # chosen by Claude from the finished image; #OjoAlPrecio is always added
 
 
 def display_name(deal: "DealObservation") -> str:

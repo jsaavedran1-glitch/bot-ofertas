@@ -127,10 +127,11 @@ def demo(database: Database, pipeline: OfferPipeline) -> None:
 
 
 def ai_preview(settings: Settings, database: Database, pipeline: OfferPipeline, limit: int) -> int:
-    """Claude's copy for real queued deals, side by side with the store titles. Publishes nothing."""
+    """What Claude would do with real queued deals: Spanish names, the analysis of the finished image,
+    the caption text and the hashtags. Publishes nothing."""
     from dataclasses import replace
-    from app.ai import claude_helper
-    from app.copywriter import facebook_copy
+    from app.ai import claude_helper, merge_copy
+    from app.copywriter import facebook_copy, trending_hashtags
     from app.models import store_name
 
     helper = claude_helper(settings.anthropic_api_key)
@@ -146,29 +147,30 @@ def ai_preview(settings: Settings, database: Database, pipeline: OfferPipeline, 
             if queue and len(picked) < limit:
                 picked.append(queue.pop(0))
     rate = pipeline.rate_provider.usd_to_cop()
+    trending = trending_hashtags()
     example = None
     for n, c in enumerate(picked, start=1):
-        ai = helper.write_copy(c.deal)
-        print(f"\n[{n}] {store_name(c.deal.source)} · -{c.deal.discount_pct}%")
-        print(f"  Título de la tienda: {c.deal.title}")
-        if ai is None:
-            print("  Claude: sin respuesta válida (se usaría la plantilla)")
+        deal = replace(c.deal, ai=helper.write_names(c.deal))
+        print(f"\n[{n}] {store_name(deal.source)} · -{deal.discount_pct}%")
+        print(f"  Título de la tienda: {deal.title}")
+        if deal.ai:
+            print(f"  Nombre en la imagen: {deal.ai.short_name}")
+            print(f"  Título en español:  {deal.ai.title_es}")
+        try:
+            image = pipeline.renderer.render(deal, f"preview_{c.id}", usd_cop_rate=rate, require_image=True)
+        except Exception as exc:
+            print(f"  Imagen: no se pudo generar ({type(exc).__name__})")
             continue
-        print(f"  Nombre corto:   {ai.short_name}")
-        print(f"  Título español: {ai.title_es}")
-        print(f"  Gancho:         {ai.hook}")
-        for point in ai.points:
-            print(f"  Beneficio:      {point}")
-        print(f"  Pregunta:       {ai.question}")
-        if n <= 3:  # also try the visual review on a few rendered posts
-            try:
-                image = pipeline.renderer.render(replace(c.deal, ai=ai), f"preview_{c.id}", usd_cop_rate=rate, require_image=True)
-                approved, problem = helper.review_image(image, c.deal)
-                print(f"  Revisión visual: {'aprobada' if approved else 'RECHAZADA - ' + problem}")
-            except Exception as exc:
-                print(f"  Revisión visual: no se pudo generar la imagen ({type(exc).__name__})")
-        if example is None:
-            example = replace(c.deal, ai=ai)
+        approved, problem, copy = helper.analyze_post(image, deal, trending)
+        print(f"  Revisión de la imagen: {'aprobada' if approved else 'RECHAZADA - ' + problem}")
+        if copy:
+            print(f"  Gancho:    {copy.hook}")
+            for point in copy.points:
+                print(f"  Beneficio: {point}")
+            print(f"  Pregunta:  {copy.question}")
+            print(f"  Hashtags:  #OjoAlPrecio {' '.join(copy.hashtags)}")
+            if example is None:
+                example = replace(deal, ai=merge_copy(deal.ai, copy))
     if example is not None:
         print("\n--- Ejemplo de texto completo del post ---\n")
         print(facebook_copy(example, rate, settings.affiliate_disclosure, settings.link_in_comment))

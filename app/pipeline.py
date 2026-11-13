@@ -6,9 +6,9 @@ from pathlib import Path
 import sys
 import time
 
-from app.ai import ClaudeHelper, claude_helper
+from app.ai import ClaudeHelper, claude_helper, merge_copy
 from app.config import Settings
-from app.copywriter import facebook_copy
+from app.copywriter import facebook_copy, trending_hashtags
 from app.database import Database
 from app.image_renderer import MissingProductImage, OfferImageRenderer
 from app.reel_renderer import ReelRenderer
@@ -97,19 +97,21 @@ class OfferPipeline:
         its Spanish product name and copy, before rendering."""
         deal = replace(candidate.deal, lowest_30d=self.database.is_lowest_price(candidate.deal))
         if self.ai:
-            deal = replace(deal, ai=self.ai.write_copy(deal))
+            deal = replace(deal, ai=self.ai.write_names(deal))
         return replace(candidate, deal=deal)
 
-    def _review(self, candidate: Candidate, image: Path | None = None) -> None:
-        """Claude looks at the rendered post first; a clear problem (wrong photo, broken text) stops it."""
-        if not (self.ai and self.settings.ai_review):
-            return
+    def _analyze(self, candidate: Candidate, image: Path | None = None) -> Candidate:
+        """Claude looks at the finished image: a clear problem (wrong photo, broken text) stops the post,
+        otherwise it writes the hook, benefits, question and hashtags from what it sees."""
+        if not self.ai:
+            return candidate
         if image is None:
             rate = self.rate_provider.usd_to_cop()
             image = self.renderer.render(candidate.deal, candidate.id, usd_cop_rate=rate, require_image=True)
-        approved, problem = self.ai.review_image(image, candidate.deal)
-        if not approved:
+        approved, problem, copy = self.ai.analyze_post(image, candidate.deal, trending_hashtags())
+        if not approved and self.settings.ai_review:
             raise ValueError(f"Claude detuvo la publicación: {problem}")
+        return replace(candidate, deal=replace(candidate.deal, ai=merge_copy(candidate.deal.ai, copy)))
 
     def render(self, candidate: Candidate, require_image: bool = False) -> tuple[Path, str]:
         rate = self.rate_provider.usd_to_cop()
@@ -153,7 +155,7 @@ class OfferPipeline:
                 self.settings.meta_graph_api_version,
             )
             if as_reel:
-                self._review(candidate)
+                candidate = self._analyze(candidate)
                 self._load_media()
                 rate = self.rate_provider.usd_to_cop()
                 video = self.reel_renderer.render_reel(
@@ -165,8 +167,12 @@ class OfferPipeline:
                 ) + " #reels"
                 post_id = publisher.publish_reel(video, caption)
             else:
-                image, caption = self.render(candidate, require_image=True)
-                self._review(candidate, image)
+                rate = self.rate_provider.usd_to_cop()
+                image = self.renderer.render(candidate.deal, candidate.id, usd_cop_rate=rate, require_image=True)
+                candidate = self._analyze(candidate, image)
+                caption = facebook_copy(
+                    candidate.deal, rate, self.settings.affiliate_disclosure, self.settings.link_in_comment
+                )
                 post_id = publisher.publish_photo(image, caption)
         except FacebookPublishError as exc:
             self.database.record_publish_error(candidate_id, str(exc), exc.ambiguous)

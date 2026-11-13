@@ -99,6 +99,6 @@ jobs:
             automatic) python main.py run --automatic ;;
             dry-run)   python main.py run --dry-run ;;
             review)    python main.py scan ;;
-            ai-preview) python main.py ai-preview --limit 20 ;;
+            ai-preview) python main.py ai-preview --limit 12 ;;
             *) echo "Modo no válido: $REQUESTED_MODE"; exit 2 ;;
           esac
