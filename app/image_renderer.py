@@ -207,11 +207,11 @@ class OfferImageRenderer:
             draw.text((W // 2, y + 31), pill, anchor="mm", font=pfont, fill=NAVY)
             y += 76
             region = "Válida solo en cuentas PSN de EE. UU."
-            draw.text((W // 2, y), region, anchor="ma", font=self._font(26, weight="Black"), fill=YELLOW)
-            y += 36
             if usd_cop_rate:
                 pesos = money(to_minor(from_minor(deal.price_minor, "USD") * usd_cop_rate, "COP"), "COP").replace(" COP", "")
-                draw.text((W // 2, y), f"≈ {pesos} pesos colombianos", anchor="ma", font=self._font(24, bold=True), fill=MUTED)
+                region += f" · ≈ {pesos} pesos"
+            draw.text((W // 2, y), region, anchor="ma", font=self._fit_font(draw, region, W - 160, 26, 18, weight="Black"), fill=YELLOW)
+            y += 36
         elif deal.original_price_minor:
             label = "ANTES " if deal.evidence == DiscountEvidence.OFFICIAL_ORIGINAL else "PRECIO TÍPICO "
             before = money(cop(deal.original_price_minor), currency).replace(" COP", "")
