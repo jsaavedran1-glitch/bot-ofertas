@@ -188,6 +188,16 @@ class Database:
             )
             """,
             f"""
+            CREATE TABLE IF NOT EXISTS content_publications (
+              id {identity},
+              kind TEXT NOT NULL,
+              content_key TEXT NOT NULL,
+              external_post_id TEXT NOT NULL,
+              published_at {timestamp_type} NOT NULL,
+              local_day TEXT NOT NULL
+            )
+            """,
+            f"""
             CREATE TABLE IF NOT EXISTS media_assets (
               name TEXT PRIMARY KEY,
               kind TEXT NOT NULL,
@@ -369,7 +379,9 @@ class Database:
         return int(row["total"])
 
     def minutes_since_last_post(self) -> float | None:
-        sql = "SELECT MAX(published_at) AS last FROM (SELECT published_at FROM publications UNION ALL SELECT published_at FROM promo_publications) AS posts"
+        sql = ("SELECT MAX(published_at) AS last FROM (SELECT published_at FROM publications"
+               " UNION ALL SELECT published_at FROM promo_publications"
+               " UNION ALL SELECT published_at FROM content_publications) AS posts")
         with self._connection() as conn:
             last = conn.execute(sql).fetchone()["last"]
         if last is None:
@@ -387,10 +399,41 @@ class Database:
             "SELECT (SELECT COUNT(CASE WHEN platform<>'facebook_top' THEN 1 END)"
             " + COUNT(DISTINCT CASE WHEN platform='facebook_top' THEN published_at END)"
             " FROM publications WHERE published_at>=?)"
-            " + (SELECT COUNT(*) FROM promo_publications WHERE published_at>=?) AS total"
+            " + (SELECT COUNT(*) FROM promo_publications WHERE published_at>=?)"
+            " + (SELECT COUNT(*) FROM content_publications WHERE published_at>=?) AS total"
         )
         with self._connection() as conn:
-            return int(conn.execute(sql, (start, start)).fetchone()["total"])
+            return int(conn.execute(sql, (start, start, start)).fetchone()["total"])
+
+    def record_content(self, kind: str, content_key: str, external_post_id: str) -> None:
+        now = utc_now()
+        with self._transaction() as conn:
+            conn.execute(
+                self._sql("INSERT INTO content_publications(kind, content_key, external_post_id, published_at, local_day)"
+                          " VALUES(?, ?, ?, ?, ?)"),
+                (kind, content_key, external_post_id, now.isoformat(),
+                 now.astimezone(ZoneInfo("America/Bogota")).date().isoformat()),
+            )
+
+    def content_history(self) -> list[tuple[str, str, datetime]]:
+        """(kind, key, published_at) of every tip and news post, oldest first."""
+        sql = "SELECT kind, content_key, published_at FROM content_publications ORDER BY published_at"
+        with self._connection() as conn:
+            rows = conn.execute(sql).fetchall()
+        out = []
+        for row in rows:
+            when = row["published_at"]
+            if isinstance(when, str):
+                when = datetime.fromisoformat(when.replace("Z", "+00:00"))
+            out.append((row["kind"], row["content_key"], when))
+        return out
+
+    def content_published_this_hour(self) -> bool:
+        local = utc_now().astimezone(ZoneInfo("America/Bogota"))
+        start = local.replace(minute=0, second=0, microsecond=0).astimezone(timezone.utc).isoformat()
+        with self._connection() as conn:
+            row = conn.execute(self._sql("SELECT 1 FROM content_publications WHERE published_at>=? LIMIT 1"), (start,)).fetchone()
+        return row is not None
 
     def top_published_today(self) -> bool:
         local_day = utc_now().astimezone(ZoneInfo("America/Bogota")).date().isoformat()

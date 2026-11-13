@@ -73,6 +73,7 @@ class Settings:
     telegram_bot_token: str = ""
     telegram_chat_id: str = ""
     min_minutes_between_posts: int = 0
+    content_hours: frozenset[int] = frozenset()  # CONTENT_HOURS: the hour's first post is a tip or a news item
     hourly_posts: tuple[int, ...] = ()  # POSTS_PER_HOUR: when set, it decides how many posts go out each hour
     anthropic_api_key: str = ""
     ai_enabled: bool = True
@@ -131,6 +132,7 @@ class Settings:
             telegram_chat_id=os.getenv("TELEGRAM_CHAT_ID", "").strip(),
             min_minutes_between_posts=int(os.getenv("MIN_MINUTES_BETWEEN_POSTS", "0")),
             hourly_posts=hourly,
+            content_hours=frozenset(int(h) for h in os.getenv("CONTENT_HOURS", "").split(",") if h.strip()),
             anthropic_api_key=os.getenv("ANTHROPIC_API_KEY", "").strip(),
             ai_review=_as_bool(os.getenv("AI_REVIEW"), True),
             ai_enabled=_as_bool(os.getenv("AI_ENABLED"), True),

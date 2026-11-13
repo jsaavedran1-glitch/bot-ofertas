@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 from datetime import datetime, timezone
+import hashlib
 from itertools import zip_longest
 import math
 import sys
@@ -9,6 +10,7 @@ import time
 from zoneinfo import ZoneInfo
 
 from app.config import Settings
+from app.content import ContentRenderer, NewsFeeds, content_caption, load_tips, news_post, next_tip
 from app.database import Database
 from app.models import DealObservation, DiscountEvidence, to_minor, variant_key
 from app.pipeline import OfferPipeline
@@ -92,6 +94,38 @@ def publish_promo(settings: Settings, database: Database, pipeline: OfferPipelin
     return True
 
 
+def publish_content(settings: Settings, database: Database, pipeline: OfferPipeline,
+                    feeds: NewsFeeds | None = None, tips=None, publisher: FacebookPublisher | None = None) -> bool:
+    """A "Dato útil" or a "Noticia", alternating (each falls back to the other). True when one went out."""
+    history = database.content_history()
+    order = ("noticia", "dato") if history and history[-1][0] == "dato" else ("dato", "noticia")
+    post = None
+    for kind in order:
+        if kind == "dato":
+            post = next_tip(load_tips() if tips is None else tips, {key: when for k, key, when in history if k == "dato"})
+        elif pipeline.ai is not None:  # news need Claude to choose and summarize
+            items = (feeds or NewsFeeds()).recent({key for k, key, _ in history if k == "noticia"})
+            picked = pipeline.ai.pick_news(items)
+            post = news_post(items[picked[0]], picked[1]) if picked else None
+        if post:
+            break
+    if post is None:
+        print("Contenido: ningún dato ni noticia disponible; se publica una oferta.")
+        return False
+    name = f"{post.kind}_{hashlib.sha1(post.key.encode()).hexdigest()[:12]}"
+    image = ContentRenderer(settings.generated_dir).render_content(post, name)
+    publisher = publisher or FacebookPublisher(settings.fb_page_id, settings.fb_page_token, settings.meta_graph_api_version)
+    post_id = publisher.publish_photo(image, content_caption(post, settings.link_in_comment))
+    database.record_content(post.kind, post.key, post_id)
+    if settings.link_in_comment:
+        try:
+            publisher.comment(post_id, f"📌 Fuente: {post.url}")
+        except FacebookPublishError as exc:
+            print(f"Advertencia contenido: {exc}", file=sys.stderr)
+    print(f"{'Dato útil' if post.kind == 'dato' else 'Noticia'} publicado ({post.source}): {post_id}")
+    return True
+
+
 def posts_due(settings: Settings, database: Database, now: datetime) -> int:
     """Posts this run should make. With POSTS_PER_HOUR, the run in the first half of the hour makes half of
     that hour's posts and the one in the second half the rest (runs come every 30 minutes)."""
@@ -149,6 +183,12 @@ def publish_slot(settings: Settings, database: Database, pipeline: OfferPipeline
                 print("Top 5: no hay suficientes ofertas válidas; se publica un post normal.")
         except (FacebookPublishError, OSError) as exc:
             print(f"Falló el top 5: {exc}", file=sys.stderr)
+    if published < due and now.hour in settings.content_hours and not database.content_published_this_hour():
+        wait_turn()
+        try:
+            published += publish_content(settings, database, pipeline)
+        except (FacebookPublishError, OSError, ValueError) as exc:
+            print(f"Falló el dato/noticia: {exc}", file=sys.stderr)
     tried: set[str] = set()
     reel_failed = False
     while published < due and len(tried) < due * 4:

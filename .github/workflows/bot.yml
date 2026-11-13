@@ -49,9 +49,12 @@ jobs:
       POST_MODE: "review"
       MIN_DISCOUNT_PCT: "35"
       MIN_SAVINGS_COP: "20000"
-      # Publicaciones por hora (Bogotá): la curva de Club de los gratis a la mitad, unas 63 al día.
-      # 8h: 2 · 9-16h: 22 · 17-22h: 39. Cada ejecución (cada 30 min) hace su mitad de la hora, espaciadas.
-      POSTS_PER_HOUR: "8:2,9:4,10:3,11:2,12:3,13:2,14:2,15:3,16:3,17:8,18:6,19:7,20:6,21:6,22:6"
+      # Publicaciones por hora (Bogotá), unas 63 al día. Volumen de Club de los gratis a la mitad, pero cargado
+      # al día: allá 9-17h promedió 10,2 reacciones por post y 17-24h solo 1,8 (63 de 80 posts sin ninguna).
+      # 8h: 3 · 9-16h: 34 · 17-22h: 26. Cada ejecución (cada 30 min) hace su mitad de la hora, espaciadas.
+      POSTS_PER_HOUR: "8:3,9:5,10:4,11:4,12:5,13:4,14:4,15:4,16:4,17:5,18:5,19:5,20:4,21:4,22:3"
+      # Dato útil o noticia (alternados) como primera publicación de estas horas; allá fueron lo más comentado
+      CONTENT_HOURS: "9,12,17"
       # Tope de seguridad diario (la suma de arriba es 63)
       MAX_POSTS_PER_DAY: "70"
       # Separación mínima entre publicaciones de ejecuciones seguidas

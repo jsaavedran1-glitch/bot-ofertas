@@ -12,7 +12,7 @@ from app.database import Database
 from tests.helpers import settings_for
 
 BOGOTA = ZoneInfo("America/Bogota")
-PLAN = "8:2,9:4,10:3,11:2,12:3,13:2,14:2,15:3,16:3,17:8,18:6,19:7,20:6,21:6,22:6"
+PLAN = "8:3,9:5,10:4,11:4,12:5,13:4,14:4,15:4,16:4,17:5,18:5,19:5,20:4,21:4,22:3"
 
 
 def at(hour, minute):
@@ -73,21 +73,21 @@ class HourlyPlanTests(unittest.TestCase):
     def tearDown(self):
         self.temp.cleanup()
 
-    def test_plan_is_half_of_the_competitor_curve(self):
+    def test_plan_is_half_the_competitor_volume_weighted_to_daytime(self):
         plan = _parse_hourly(PLAN)
         self.assertEqual(sum(plan), 63)
-        self.assertEqual(sum(plan[9:17]), 22)
-        self.assertEqual(sum(plan[17:23]), 39)
+        self.assertEqual(sum(plan[9:17]), 34)
+        self.assertEqual(sum(plan[17:23]), 26)
         self.assertEqual(plan[7], 0)
         with self.assertRaises(ValueError):
             _parse_hourly("24:2")
 
     def test_each_half_hour_run_makes_its_share(self):
         s = self.settings
-        self.assertEqual(main.posts_due(s, FakeDb(), at(17, 1)), 4)      # first half: half of 8
-        self.assertEqual(main.posts_due(s, FakeDb(4), at(17, 31)), 4)    # second half: the rest
-        self.assertEqual(main.posts_due(s, FakeDb(1), at(19, 2)), 3)     # 7 -> 4 in the first half
-        self.assertEqual(main.posts_due(s, FakeDb(2), at(13, 45)), 0)    # quota already met
+        self.assertEqual(main.posts_due(s, FakeDb(), at(10, 1)), 2)      # first half: half of 4
+        self.assertEqual(main.posts_due(s, FakeDb(2), at(10, 31)), 2)    # second half: the rest
+        self.assertEqual(main.posts_due(s, FakeDb(1), at(19, 2)), 2)     # 5 -> 3 in the first half
+        self.assertEqual(main.posts_due(s, FakeDb(4), at(13, 45)), 0)    # quota already met
         self.assertEqual(main.posts_due(s, FakeDb(), at(23, 5)), 0)
         legacy = replace(s, hourly_posts=())
         self.assertEqual(main.posts_due(legacy, FakeDb(), at(17, 1)), 1)  # without the plan: one per run
@@ -103,18 +103,18 @@ class HourlyPlanTests(unittest.TestCase):
         pipeline = FakePipeline(db, fail={"a2"})
         with patch.object(main, "publish_queues", return_value=[["a1", "a2", "a3"], ["b1", "b2"]]):
             done = main.publish_slot(self.settings, db, pipeline, now=at(19, 1), sleep=clock.sleep, clock=clock)
-        self.assertEqual(done, 4)
+        self.assertEqual(done, 3)                                         # 5 at 19h -> 3 in the first half
         self.assertEqual(pipeline.calls[0], ("a1", True))                # the hour's reel goes first
         self.assertTrue(all(not reel for _, reel in pipeline.calls[1:]))
         self.assertEqual([c for c, _ in pipeline.calls].count("a2"), 1)  # a failed deal is not retried
-        self.assertEqual([s for s in clock.sleeps if s], [420, 420, 420])  # one every 7 minutes
+        self.assertEqual([s for s in clock.sleeps if s], [560, 560])     # one every 9 1/3 minutes
 
     def test_failed_reel_falls_back_to_photos(self):
         db, clock = FakeDb(), FakeClock()
         pipeline = FakePipeline(db, fail={"a1"})
         with patch.object(main, "publish_queues", return_value=[["a1", "a2"], ["b1"]]):
             done = main.publish_slot(self.settings, db, pipeline, now=at(19, 31), sleep=clock.sleep, clock=clock)
-        self.assertEqual(done, 2)                                         # only two other deals left
+        self.assertEqual(done, 2)                                         # 5 due, only two other deals left
         self.assertEqual(pipeline.calls, [("a1", True), ("b1", False), ("a2", False)])
 
     def test_waits_out_the_minimum_gap_instead_of_skipping(self):
