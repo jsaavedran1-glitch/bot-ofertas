@@ -63,7 +63,7 @@ class DatabaseTests(unittest.TestCase):
 
 
 class PublishQueueTests(unittest.TestCase):
-    def test_pattern_prioritizes_mercadolibre_and_amazon(self):
+    def test_pattern_prioritizes_amazon_and_skips_mercadolibre(self):
         import tempfile
         from main import publish_queues
         from app.models import DealObservation, DiscountEvidence
@@ -84,11 +84,10 @@ class PublishQueueTests(unittest.TestCase):
             def order(queues):
                 return [db.get_candidate(q[0]).deal.source for q in queues]
 
-            self.assertEqual(order(publish_queues(db)), ["mercadolibre", "amazon", "exito"])  # woot never
-            self.assertEqual(order(publish_queues(db, as_reel=True)), ["mercadolibre", "exito"])
-            for n, source in enumerate(("mercadolibre", "amazon")):
-                cid = ids[source][0]
-                db.reserve_for_publish(cid, 15)
-                db.record_publication(cid, f"post_{n}")
-            # 2 posts today -> pattern slot 3 is Éxito
+            # Mercado Libre and Woot are no longer published
+            self.assertEqual(order(publish_queues(db)), ["amazon", "exito"])
+            self.assertEqual(order(publish_queues(db, as_reel=True)), ["amazon", "exito"])
+            cid = ids["amazon"][0]
+            db.reserve_for_publish(cid, 15)
+            db.record_publication(cid, "post_0")
             self.assertEqual(order(publish_queues(db)), ["exito"])

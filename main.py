@@ -7,13 +7,11 @@ from zoneinfo import ZoneInfo
 
 from app.config import Settings
 from app.database import Database
-from app.ml_auth import MercadoLibreAuthError, MercadoLibreTokenManager
 from app.models import DealObservation, DiscountEvidence, to_minor
 from app.pipeline import OfferPipeline
 from app.publishers.facebook import FacebookPublisher, FacebookPublishError
-from app.sources import AuthenticatedMercadoLibreSource, PartnerFeedSource
+from app.sources import PartnerFeedSource
 from app.sources.amazon_rss import AmazonRssSource
-from app.sources.ml_affiliates import MercadoLibreAffiliateSource
 from app.sources.colombia_stores import colombia_store_sources
 from app.promos import PROMO_STORES, PromoRenderer, find_promo, promo_copy, promo_links
 
@@ -22,18 +20,8 @@ def build_runtime(settings: Settings, include_sources: bool = True) -> tuple[Dat
     database = Database(settings.database_url)
     database.initialize()
     sources = []
-    token_provider = None
-    if include_sources and (settings.ml_access_token or settings.ml_refresh_token):
-        manager = MercadoLibreTokenManager(settings, database)
-        token_provider = manager.access_token
-        sources.append(
-            AuthenticatedMercadoLibreSource(
-                (), settings.ml_limit_per_query, manager.access_token
-            )
-        )
-    if include_sources:
-        # Hand-picked Mercado Libre Afiliados deals (the API no longer exposes prices to this app).
-        sources.append(MercadoLibreAffiliateSource(ML_AFFILIATE_FEED, token_provider))
+    # Mercado Libre is off: since 2026 its API no longer returns search, best sellers or prices to
+    # uncertified apps. Its sources (app/sources/mercadolibre.py, ml_affiliates.py) can be re-added here.
     if include_sources:
         sources.append(AmazonRssSource(min_discount_pct=settings.min_discount_pct))
         sources.extend(colombia_store_sources())
@@ -41,15 +29,13 @@ def build_runtime(settings: Settings, include_sources: bool = True) -> tuple[Dat
     return database, OfferPipeline(settings, database, sources)
 
 
-ML_AFFILIATE_FEED = "feeds/mercadolibre_afiliados.csv"
-
-# Every 10 posts: 3 Mercado Libre, 3 Amazon, 2 Alkosto, 1 Ktronix, 1 Éxito. A missing source is skipped.
+# Every 10 posts: 6 Amazon, 2 Alkosto, 1 Ktronix, 1 Éxito. A missing source is skipped.
 PUBLISH_PATTERN = (
-    "mercadolibre", "amazon", "alkosto",
-    "mercadolibre", "amazon", "ktronix",
-    "mercadolibre", "amazon", "alkosto", "exito",
+    "amazon", "alkosto", "amazon",
+    "ktronix", "amazon", "alkosto",
+    "amazon", "exito", "amazon", "amazon",
 )
-REEL_SOURCES = {"mercadolibre", "exito", "alkosto", "ktronix"}
+REEL_SOURCES = {"amazon", "exito", "alkosto", "ktronix"}
 
 
 def publish_queues(database: Database, as_reel: bool = False) -> list[list[str]]:
@@ -243,7 +229,7 @@ def main() -> int:
         elif args.command == "demo":
             demo(database, pipeline)
         return 0
-    except (ValueError, MercadoLibreAuthError, FacebookPublishError) as exc:
+    except (ValueError, FacebookPublishError) as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 2
 
