@@ -15,6 +15,7 @@ on:
           - dry-run
           - review
           - automatic
+          - ai-preview
 
 permissions:
   contents: read
@@ -41,6 +42,8 @@ jobs:
       TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
       # Claude Sonnet 5.5 (opcional): títulos en español, textos y revisión de la imagen. Sin el secret, plantillas.
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      # Apagado en las publicaciones hasta aprobar la vista previa (modo ai-preview); poner "true" para activarlo.
+      AI_ENABLED: "false"
       META_GRAPH_API_VERSION: "v26.0"
       POST_MODE: "review"
       MIN_DISCOUNT_PCT: "35"
@@ -96,5 +99,6 @@ jobs:
             automatic) python main.py run --automatic ;;
             dry-run)   python main.py run --dry-run ;;
             review)    python main.py scan ;;
+            ai-preview) python main.py ai-preview --limit 20 ;;
             *) echo "Modo no válido: $REQUESTED_MODE"; exit 2 ;;
           esac

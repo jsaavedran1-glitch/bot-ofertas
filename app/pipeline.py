@@ -45,7 +45,7 @@ class OfferPipeline:
         self.renderer = renderer or OfferImageRenderer(settings.generated_dir)
         self.rate_provider = rate_provider or ExchangeRateProvider(settings.usd_cop_rate)
         self.reel_renderer = reel_renderer or ReelRenderer(settings.generated_dir)
-        self.ai = ai if ai is not None else claude_helper(settings.anthropic_api_key)
+        self.ai = ai if ai is not None else (claude_helper(settings.anthropic_api_key) if settings.ai_enabled else None)
         self.telegram = (
             TelegramPublisher(settings.telegram_bot_token, settings.telegram_chat_id)
             if settings.telegram_bot_token and settings.telegram_chat_id else None

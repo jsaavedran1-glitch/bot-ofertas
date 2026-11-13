@@ -60,6 +60,7 @@ class Settings:
     telegram_chat_id: str = ""
     min_minutes_between_posts: int = 0
     anthropic_api_key: str = ""
+    ai_enabled: bool = True
     ai_review: bool = True
 
     @classmethod
@@ -113,4 +114,5 @@ class Settings:
             min_minutes_between_posts=int(os.getenv("MIN_MINUTES_BETWEEN_POSTS", "0")),
             anthropic_api_key=os.getenv("ANTHROPIC_API_KEY", "").strip(),
             ai_review=_as_bool(os.getenv("AI_REVIEW"), True),
+            ai_enabled=_as_bool(os.getenv("AI_ENABLED"), True),
         )

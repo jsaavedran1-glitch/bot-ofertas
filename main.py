@@ -119,6 +119,49 @@ def demo(database: Database, pipeline: OfferPipeline) -> None:
     print("\nCero publicaciones reales realizadas.")
 
 
+def ai_preview(settings: Settings, database: Database, pipeline: OfferPipeline, limit: int) -> int:
+    """Claude's copy for real queued deals, side by side with the store titles. Publishes nothing."""
+    from dataclasses import replace
+    from app.ai import claude_helper
+    from app.copywriter import facebook_copy
+    from app.models import store_name
+
+    helper = claude_helper(settings.anthropic_api_key)
+    if helper is None:
+        print("Falta ANTHROPIC_API_KEY o el paquete anthropic.", file=sys.stderr)
+        return 2
+    by_source: dict[str, list] = {}
+    for c in database.list_candidates("approved", limit=200) + database.list_candidates("pending", limit=200):
+        by_source.setdefault(c.deal.source, []).append(c)
+    picked = []
+    while len(picked) < limit and any(by_source.values()):
+        for queue in by_source.values():
+            if queue and len(picked) < limit:
+                picked.append(queue.pop(0))
+    rate = pipeline.rate_provider.usd_to_cop()
+    example = None
+    for n, c in enumerate(picked, start=1):
+        ai = helper.write_copy(c.deal)
+        print(f"\n[{n}] {store_name(c.deal.source)} · -{c.deal.discount_pct}%")
+        print(f"  Título de la tienda: {c.deal.title}")
+        if ai is None:
+            print("  Claude: sin respuesta válida (se usaría la plantilla)")
+            continue
+        print(f"  Nombre corto:   {ai.short_name}")
+        print(f"  Título español: {ai.title_es}")
+        print(f"  Gancho:         {ai.hook}")
+        for point in ai.points:
+            print(f"  Beneficio:      {point}")
+        print(f"  Pregunta:       {ai.question}")
+        if example is None:
+            example = replace(c.deal, ai=ai)
+    if example is not None:
+        print("\n--- Ejemplo de texto completo del post ---\n")
+        print(facebook_copy(example, rate, settings.affiliate_disclosure, settings.link_in_comment))
+    print(f"\nVista previa de {len(picked)} ofertas. No se publicó nada.")
+    return 0
+
+
 def parser() -> argparse.ArgumentParser:
     root = argparse.ArgumentParser(description="Bot Ojo al Precio para Facebook")
     commands = root.add_subparsers(dest="command", required=True)
@@ -137,6 +180,8 @@ def parser() -> argparse.ArgumentParser:
     modes.add_argument("--dry-run", action="store_true")
     modes.add_argument("--automatic", action="store_true")
     commands.add_parser("demo", help="Generar imagen y copy ficticios sin publicar")
+    preview = commands.add_parser("ai-preview", help="Ver los textos de Claude para ofertas reales, sin publicar")
+    preview.add_argument("--limit", type=int, default=20)
     return root
 
 
@@ -228,6 +273,8 @@ def main() -> int:
                 print("Modo review: usa list, approve y publish para revisar cada oferta.")
         elif args.command == "demo":
             demo(database, pipeline)
+        elif args.command == "ai-preview":
+            return ai_preview(settings, database, pipeline, args.limit)
         return 0
     except (ValueError, FacebookPublishError) as exc:
         print(f"Error: {exc}", file=sys.stderr)
