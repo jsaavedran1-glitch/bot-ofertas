@@ -81,6 +81,9 @@ _SOURCE_TAGS = {
     "exito": "#exito #almacenesexito",
     "alkosto": "#alkosto",
     "ktronix": "#ktronix",
+    "falabella": "#falabella #moda",
+    "nike": "#nike #nikecolombia",
+    "tennis": "#tennis #moda",
 }
 
 

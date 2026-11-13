@@ -29,13 +29,13 @@ def build_runtime(settings: Settings, include_sources: bool = True) -> tuple[Dat
     return database, OfferPipeline(settings, database, sources)
 
 
-# Every 10 posts: 6 Amazon, 2 Alkosto, 1 Ktronix, 1 Éxito. A missing source is skipped.
+# Every 13 posts: 4 Amazon, 2 Falabella (Adidas, Nike, Puma, New Balance), 2 Nike, 2 Alkosto, 1 Ktronix,
+# 1 Tennis, 1 Éxito. A source with nothing approved is skipped.
 PUBLISH_PATTERN = (
-    "amazon", "alkosto", "amazon",
-    "ktronix", "amazon", "alkosto",
-    "amazon", "exito", "amazon", "amazon",
+    "amazon", "falabella", "alkosto", "nike", "amazon", "ktronix", "falabella",
+    "amazon", "tennis", "alkosto", "nike", "amazon", "exito",
 )
-REEL_SOURCES = {"amazon", "exito", "alkosto", "ktronix"}
+REEL_SOURCES = {"amazon", "exito", "alkosto", "ktronix", "falabella", "nike", "tennis"}
 
 
 def publish_queues(database: Database, as_reel: bool = False, cooldown_days: int = 7) -> list[list[str]]:
