@@ -10,7 +10,7 @@ from PIL import Image, ImageDraw, ImageOps
 
 from app.image_renderer import MUTED, NAVY, POST_CANVAS, RED, WHITE, YELLOW, OfferImageRenderer
 from app.copywriter import trend_tags
-from app.models import DealObservation, display_title, money, store_name
+from app.models import DealObservation, display_name, money, store_name
 
 # Brand -> search terms. The brand is rotated by day so consecutive days feature different brands.
 BRANDS: tuple[tuple[str, tuple[str, ...]], ...] = (
@@ -159,7 +159,7 @@ class PromoRenderer(OfferImageRenderer):
         pw = int(draw.textlength(pct, font=pfont)) + 34
         draw.rounded_rectangle((x + 16, y + 16, x + 16 + pw, y + 64), radius=24, fill=RED)
         draw.text((x + 16 + pw // 2, y + 40), pct, anchor="mm", font=pfont, fill=WHITE)
-        font, lines = self._fit_lines(draw, display_title(deal.title), w - 48, max_lines=2, start=26, minimum=20)
+        font, lines = self._fit_lines(draw, display_name(deal), w - 48, max_lines=2, start=26, minimum=20)
         ty = y + 236
         for line in lines:
             draw.text((x + 24, ty), line, font=font, fill=NAVY)

@@ -13,7 +13,7 @@ from zoneinfo import ZoneInfo
 import requests
 from PIL import Image, ImageChops, ImageDraw, ImageFont, ImageOps, UnidentifiedImageError
 
-from app.models import DealObservation, DiscountEvidence, display_title, from_minor, money, rating_text, store_name, to_minor
+from app.models import DealObservation, DiscountEvidence, display_name, from_minor, money, rating_text, store_name, to_minor
 
 
 CANVAS = (1080, 1080)  # square: promo grid
@@ -172,7 +172,7 @@ class OfferImageRenderer:
         self._burst(draw, (W - 160, 232), 128, f"-{deal.discount_pct}%")
 
         # Title
-        title_font, title_lines = self._fit_lines(draw, display_title(deal.title), W - 140, max_lines=2, start=44, minimum=30)
+        title_font, title_lines = self._fit_lines(draw, display_name(deal), W - 140, max_lines=2, start=44, minimum=30)
         ty = 758
         for line in title_lines:
             draw.text((W // 2, ty), line, anchor="ma", font=title_font, fill=WHITE)
@@ -263,7 +263,7 @@ class OfferImageRenderer:
             draw.rounded_rectangle((W - 72 - pw, y + row_h // 2 - 30, W - 72, y + row_h // 2 + 30), radius=30, fill=RED)
             draw.text((W - 72 - pw // 2, y + row_h // 2), pct, anchor="mm", font=pfont, fill=WHITE)
             text_w = W - 72 - pw - 24 - 326
-            tfont, lines = self._fit_lines(draw, display_title(deal.title), text_w, max_lines=1, start=28, minimum=22)
+            tfont, lines = self._fit_lines(draw, display_name(deal), text_w, max_lines=1, start=28, minimum=22)
             draw.text((326, y + 30), lines[0], font=tfont, fill=NAVY)
             draw.text((326, y + 70), store_name(deal.source), font=self._font(22, weight="SemiBold"), fill="#5B6B80")
             minor = deal.price_minor

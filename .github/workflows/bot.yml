@@ -39,6 +39,8 @@ jobs:
       # Canal de Telegram (opcional): sin estos secrets no se publica allí
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      # Claude Sonnet 5.5 (opcional): títulos en español, textos y revisión de la imagen. Sin el secret, plantillas.
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       META_GRAPH_API_VERSION: "v26.0"
       POST_MODE: "review"
       MIN_DISCOUNT_PCT: "35"

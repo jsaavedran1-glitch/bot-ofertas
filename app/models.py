@@ -78,6 +78,23 @@ def utc_now() -> datetime:
 
 
 @dataclass(frozen=True)
+class AiCopy:
+    """Words written by Claude for one post (see app/ai.py). Never prices: those come from our data."""
+    short_name: str | None = None  # Spanish product name for images
+    title_es: str | None = None  # full title in Spanish (Amazon titles arrive in English)
+    hook: str | None = None
+    points: tuple[str, ...] = ()
+    question: str | None = None
+
+
+def display_name(deal: "DealObservation") -> str:
+    """Product name for images and hooks: Claude's Spanish short name, else the cleaned store title."""
+    if deal.ai and deal.ai.short_name:
+        return deal.ai.short_name
+    return display_title(deal.title)
+
+
+@dataclass(frozen=True)
 class DealObservation:
     source: str
     external_id: str
@@ -95,6 +112,7 @@ class DealObservation:
     rating: float | None = None  # store's average review score (0-5)
     reviews: int | None = None  # number of reviews behind `rating`
     lowest_30d: bool = False  # set at publish time from our own price history; not stored
+    ai: AiCopy | None = None  # set at publish time by Claude when ANTHROPIC_API_KEY is configured; not stored
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "source", self.source.strip().lower())

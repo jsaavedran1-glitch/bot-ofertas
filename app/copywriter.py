@@ -6,7 +6,7 @@ import hashlib
 import os
 from zoneinfo import ZoneInfo
 
-from app.models import DealObservation, DiscountEvidence, from_minor, money, rating_text, store_name
+from app.models import DealObservation, DiscountEvidence, display_name, from_minor, money, rating_text, store_name
 
 
 def _short(title: str, limit: int = 45) -> str:
@@ -28,7 +28,7 @@ def _prices(deal: DealObservation, usd_cop_rate: Decimal | None) -> tuple[str, s
 
 def _hook(deal: DealObservation, usd_cop_rate: Decimal | None = None) -> str:
     """First line: product + price + discount, short enough to show before "ver más"."""
-    short = _short(deal.title)
+    short = _short(display_name(deal))
     now, before, saved = _prices(deal, usd_cop_rate)
     pct = deal.discount_pct
     if deal.lowest_30d:
@@ -108,7 +108,11 @@ def facebook_copy(
     """Hook first (visible before "ver más"), then the key numbers, link, question; small print last."""
     now, before, saved = _prices(deal, usd_cop_rate)
     approx = "≈ " if deal.currency == "USD" and usd_cop_rate is not None else ""
-    lines = [_hook(deal, usd_cop_rate), ""]
+    ai = deal.ai
+    lines = [_hook(deal, usd_cop_rate)]
+    if ai and ai.hook:
+        lines.append(ai.hook)
+    lines.append("")
     if before and deal.evidence == DiscountEvidence.OFFICIAL_ORIGINAL:
         lines.append(f"✅ Antes {approx}{before} → Ahora {approx}{now} (ahorras {saved})")
     elif before:
@@ -120,7 +124,10 @@ def facebook_copy(
     stars = rating_text(deal)
     if stars:
         lines.append(f"⭐ {stars} en {store_name(deal.source)}")
-    lines.append(f"🛍️ {deal.title}")
+    # Amazon titles arrive in English: show Claude's Spanish version; store titles stay as they are.
+    title = ai.title_es if ai and ai.title_es and deal.source == "amazon" else deal.title
+    lines.append(f"🛍️ {title}")
+    lines.extend(f"✔️ {point}" for point in (ai.points if ai else ()))
     lines.append(f"🏪 {store_name(deal.source)}" + (f" · 🚚 {deal.shipping_note}" if deal.shipping_note else ""))
     lines.append("👇 Link en el primer comentario" if link_in_comment else f"👉 {deal.url}")
     lines.append("")
@@ -133,7 +140,7 @@ def facebook_copy(
         small.append("Como Asociado de Amazon, ganamos con las compras que cumplen los requisitos." if deal.source == "amazon"
                      else "Enlace afiliado: podemos recibir una comisión sin costo adicional para ti.")
     lines.append("ℹ️ " + " ".join(small))
-    lines.extend(["", _pick(deal, _QUESTIONS, salt="q"), ""])
+    lines.extend(["", ai.question if ai and ai.question else _pick(deal, _QUESTIONS, salt="q"), ""])
     tags = f"#OjoAlPrecio #ofertas {_SOURCE_TAGS.get(deal.source, '')} {trend_tags(deal.external_id, 2)}"
     lines.append(" ".join(tags.split()))
     return "\n".join(lines)

@@ -9,7 +9,7 @@ import subprocess
 from PIL import Image, ImageDraw, ImageOps
 
 from app.image_renderer import GREEN, MUTED, NAVY, PANEL, RED, WHITE, YELLOW, MissingProductImage, OfferImageRenderer
-from app.models import DealObservation, DiscountEvidence, display_title, from_minor, money, store_name, to_minor
+from app.models import DealObservation, DiscountEvidence, display_name, from_minor, money, store_name, to_minor
 from app.scoring import price_cop
 
 W, H, FPS, SECONDS = 1080, 1920, 30, 9
@@ -239,7 +239,7 @@ class ReelRenderer(OfferImageRenderer):
         draw.text((CARD[0] + chip_w + 76, HEADER_Y + 36), "OFERTA DEL DÍA", anchor="lm",
                   font=self._font(34, weight="Black"), fill=YELLOW)
         draw.rounded_rectangle(CARD, radius=48, fill=WHITE)
-        font, lines = self._fit_lines(draw, display_title(deal.title), 900, max_lines=2, start=44, minimum=30)
+        font, lines = self._fit_lines(draw, display_name(deal), 900, max_lines=2, start=44, minimum=30)
         y = TITLE_Y
         for line in lines:
             draw.text((W // 2, y), line, anchor="ma", font=font, fill=WHITE)

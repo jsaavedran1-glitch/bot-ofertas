@@ -6,6 +6,7 @@ from pathlib import Path
 import sys
 import time
 
+from app.ai import ClaudeHelper, claude_helper
 from app.config import Settings
 from app.copywriter import facebook_copy
 from app.database import Database
@@ -36,6 +37,7 @@ class OfferPipeline:
         renderer: OfferImageRenderer | None = None,
         rate_provider: ExchangeRateProvider | None = None,
         reel_renderer: ReelRenderer | None = None,
+        ai: ClaudeHelper | None = None,
     ) -> None:
         self.settings = settings
         self.database = database
@@ -43,6 +45,7 @@ class OfferPipeline:
         self.renderer = renderer or OfferImageRenderer(settings.generated_dir)
         self.rate_provider = rate_provider or ExchangeRateProvider(settings.usd_cop_rate)
         self.reel_renderer = reel_renderer or ReelRenderer(settings.generated_dir)
+        self.ai = ai if ai is not None else claude_helper(settings.anthropic_api_key)
         self.telegram = (
             TelegramPublisher(settings.telegram_bot_token, settings.telegram_chat_id)
             if settings.telegram_bot_token and settings.telegram_chat_id else None
@@ -88,8 +91,23 @@ class OfferPipeline:
         return report
 
     def _with_insights(self, candidate: Candidate) -> Candidate:
-        """Attach facts computed from our own data (e.g. lowest price in 30 days) before rendering."""
-        return replace(candidate, deal=replace(candidate.deal, lowest_30d=self.database.is_lowest_price(candidate.deal)))
+        """Attach facts computed from our own data (lowest price in 30 days) and, when Claude is configured,
+        its Spanish product name and copy, before rendering."""
+        deal = replace(candidate.deal, lowest_30d=self.database.is_lowest_price(candidate.deal))
+        if self.ai:
+            deal = replace(deal, ai=self.ai.write_copy(deal))
+        return replace(candidate, deal=deal)
+
+    def _review(self, candidate: Candidate, image: Path | None = None) -> None:
+        """Claude looks at the rendered post first; a clear problem (wrong photo, broken text) stops it."""
+        if not (self.ai and self.settings.ai_review):
+            return
+        if image is None:
+            rate = self.rate_provider.usd_to_cop()
+            image = self.renderer.render(candidate.deal, candidate.id, usd_cop_rate=rate, require_image=True)
+        approved, problem = self.ai.review_image(image, candidate.deal)
+        if not approved:
+            raise ValueError(f"Claude detuvo la publicación: {problem}")
 
     def render(self, candidate: Candidate, require_image: bool = False) -> tuple[Path, str]:
         rate = self.rate_provider.usd_to_cop()
@@ -133,6 +151,7 @@ class OfferPipeline:
                 self.settings.meta_graph_api_version,
             )
             if as_reel:
+                self._review(candidate)
                 self._load_media()
                 rate = self.rate_provider.usd_to_cop()
                 video = self.reel_renderer.render_reel(
@@ -145,11 +164,12 @@ class OfferPipeline:
                 post_id = publisher.publish_reel(video, caption)
             else:
                 image, caption = self.render(candidate, require_image=True)
+                self._review(candidate, image)
                 post_id = publisher.publish_photo(image, caption)
         except FacebookPublishError as exc:
             self.database.record_publish_error(candidate_id, str(exc), exc.ambiguous)
             raise
-        except MissingProductImage as exc:
+        except (MissingProductImage, ValueError) as exc:
             self.database.record_publish_error(candidate_id, str(exc), False)
             raise
         except Exception:

@@ -59,6 +59,8 @@ class Settings:
     telegram_bot_token: str = ""
     telegram_chat_id: str = ""
     min_minutes_between_posts: int = 0
+    anthropic_api_key: str = ""
+    ai_review: bool = True
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -109,4 +111,6 @@ class Settings:
             telegram_bot_token=os.getenv("TELEGRAM_BOT_TOKEN", "").strip(),
             telegram_chat_id=os.getenv("TELEGRAM_CHAT_ID", "").strip(),
             min_minutes_between_posts=int(os.getenv("MIN_MINUTES_BETWEEN_POSTS", "0")),
+            anthropic_api_key=os.getenv("ANTHROPIC_API_KEY", "").strip(),
+            ai_review=_as_bool(os.getenv("AI_REVIEW"), True),
         )
