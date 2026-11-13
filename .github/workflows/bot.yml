@@ -45,8 +45,9 @@ jobs:
       TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
       # Claude Sonnet 5.5 (opcional): títulos en español, textos y revisión de la imagen. Sin el secret, plantillas.
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-      # Feed de productos de Adidas CO en Awin (opcional): sin el secret, la fuente no se usa
-      AWIN_ADIDAS_FEED_URL: ${{ secrets.AWIN_ADIDAS_FEED_URL }}
+      # Feed de Adidas CO en Awin. APAGADO hasta que Awin apruebe la afiliación (hoy: pendiente). Para
+      # activarlo, reemplaza "" por ${{ secrets.AWIN_ADIDAS_FEED_URL }} (el secret ya está guardado).
+      AWIN_ADIDAS_FEED_URL: ""
       # Claude en las publicaciones (textos + revisión visual). "false" lo apaga sin borrar la clave.
       AI_ENABLED: "true"
       META_GRAPH_API_VERSION: "v26.0"
