@@ -8,7 +8,7 @@ from typing import Any, Callable, Iterator
 from zoneinfo import ZoneInfo
 import sqlite3
 
-from app.models import Candidate, DealObservation, DiscountEvidence, utc_now
+from app.models import Candidate, DealObservation, DiscountEvidence, utc_now, variant_key
 
 
 VALID_STATUSES = {"pending", "approved", "publishing", "published", "rejected", "failed", "unknown", "expired"}
@@ -320,6 +320,14 @@ class Database:
         )
         with self._connection() as conn:
             return conn.execute(sql, (source, external_id, since)).fetchone() is not None
+
+    def published_variant_keys(self, days: int) -> set[str]:
+        """Variant keys (see models.variant_key) of everything published in the last `days` days."""
+        since = (utc_now() - timedelta(days=days)).isoformat()
+        sql = self._sql("SELECT c.title FROM publications p JOIN candidates c ON c.id=p.candidate_id WHERE p.published_at>=?")
+        with self._connection() as conn:
+            rows = conn.execute(sql, (since,)).fetchall()
+        return {variant_key(row["title"]) for row in rows}
 
     def create_candidate(self, deal: DealObservation, candidate_score: int) -> bool:
         now = utc_now().isoformat()

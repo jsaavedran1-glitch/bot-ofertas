@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import unicodedata
 
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
@@ -54,10 +55,19 @@ def store_name(source: str) -> str:
 _COLORS = {
     "negro", "negra", "blanco", "blanca", "gris", "plata", "plateado", "plateada", "azul", "rojo", "roja", "rosado",
     "rosada", "rosa", "verde", "morado", "morada", "lila", "beige", "dorado", "dorada", "grafito", "titanio", "crema",
-    "black", "white", "silver", "gray", "grey", "blue", "pink",
+    "black", "white", "silver", "gray", "grey", "blue", "pink", "inox", "cafe", "naranja", "amarillo", "amarilla",
 }
 _MODEL_CODE = re.compile(r"^(?=(?:.*\d){2})(?=(?:.*[A-Za-z]){2})[A-Za-z0-9][A-Za-z0-9/._-]{5,}$")
 _METRIC = re.compile(r"\s+\d+(?:[.,]\d+)?\s*cm\b", re.IGNORECASE)
+
+
+def variant_key(title: str) -> str:
+    """Same product in another colour, or the same catalogue item at Alkosto and Ktronix, gets the same key
+    (e.g. "Audífonos SONY WH-CH520 Negro" / "... Azul"). Sizes and model numbers still tell products apart."""
+    text = unicodedata.normalize("NFKD", title.lower())
+    text = "".join(ch for ch in text if not unicodedata.combining(ch))
+    text = re.sub(r"[|/,;:()\[\]+]+", " ", text)
+    return " ".join(w for w in text.split() if w.strip(".-") not in _COLORS)
 
 
 def display_title(title: str) -> str:

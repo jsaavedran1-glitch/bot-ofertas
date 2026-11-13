@@ -98,7 +98,7 @@ class PublishQueueTests(unittest.TestCase):
             ids = {}
             for source in ("mercadolibre", "amazon", "woot", "exito"):
                 deal = DealObservation(
-                    source=source, external_id=f"{source}{len(ids)}", title="X", price_minor=5000,
+                    source=source, external_id=f"{source}{len(ids)}", title=f"Producto {source}", price_minor=5000,
                     original_price_minor=10000, evidence=DiscountEvidence.OFFICIAL_ORIGINAL,
                     currency="USD", url="https://example.com", image_url="https://example.com/i.png",
                 )
@@ -116,3 +116,52 @@ class PublishQueueTests(unittest.TestCase):
             db.reserve_for_publish(cid, 15)
             db.record_publication(cid, "post_0")
             self.assertEqual(order(publish_queues(db)), ["exito"])
+
+
+class VariantTests(unittest.TestCase):
+    def test_colours_and_stores_collapse_but_sizes_do_not(self):
+        from app.models import variant_key
+        sony = "Audífonos de Diadema SONY Inalámbricos Bluetooth On Ear WH-CH520 {}"
+        self.assertEqual(len({variant_key(sony.format(c)) for c in ("Negro", "Azul", "Rosado", "Crema")}), 1)
+        self.assertEqual(variant_key("Reloj KALLEY K-SWR4 35mm Rosado|Blanco"), variant_key("Reloj KALLEY K-SWR4 35mm Negro"))
+        self.assertNotEqual(variant_key("Freidora de Aire KALLEY 3.5Litros K-MAF35 Negro"),
+                            variant_key("Freidora de Aire KALLEY 4.5 Litros K-MAF45 Negro"))
+
+    def test_queue_keeps_one_variant_and_skips_recently_posted_products(self):
+        from main import publish_queues
+        with tempfile.TemporaryDirectory() as directory:
+            db = Database(f"sqlite:///{directory}/v.db")
+            db.initialize()
+            title = "Audífonos SONY WH-CH520 {}"
+            deals = [
+                DealObservation(source=src, external_id=f"{src}{color}", title=title.format(color), price_minor=price,
+                                original_price_minor=200_000, evidence=DiscountEvidence.OFFICIAL_ORIGINAL,
+                                currency="COP", url=f"https://example.com/{src}{color}")
+                for src, color, price in (("alkosto", "Negro", 90_000), ("ktronix", "Azul", 95_000), ("alkosto", "Rosado", 99_000))
+            ]
+            other = DealObservation(source="ktronix", external_id="F1", title="Freidora KALLEY 3.5 L", price_minor=99_000,
+                                    original_price_minor=200_000, evidence=DiscountEvidence.OFFICIAL_ORIGINAL,
+                                    currency="COP", url="https://example.com/F1")
+            for deal, score in zip(deals + [other], (60, 50, 40, 30)):
+                db.create_candidate(deal, score)
+                db.decide(deal.candidate_id, "approved")
+            queued = [cid for queue in publish_queues(db) for cid in queue]
+            self.assertEqual(sorted(queued), sorted([deals[0].candidate_id, other.candidate_id]))
+            # Once one colour is posted, the others stay out of the queue for the cooldown.
+            db.reserve_for_publish(deals[0].candidate_id, 10)
+            db.record_publication(deals[0].candidate_id, "post_1")
+            queued = [cid for queue in publish_queues(db) for cid in queue]
+            self.assertEqual(queued, [other.candidate_id])
+
+    def test_top_five_never_repeats_a_product(self):
+        from app.models import Candidate
+        from app.top5 import pick_top
+        def cand(i, src, title):
+            deal = DealObservation(source=src, external_id=str(i), title=title, price_minor=1000 + i,
+                                   original_price_minor=5000, evidence=DiscountEvidence.OFFICIAL_ORIGINAL,
+                                   currency="COP", url=f"https://example.com/{i}")
+            from app.models import utc_now
+            return Candidate(id=deal.candidate_id, deal=deal, score=100 - i, status="approved", created_at=utc_now())
+        picked = pick_top([cand(0, "alkosto", "Parlante JBL Go 4 Negro"), cand(1, "ktronix", "Parlante JBL Go 4 Azul"),
+                           cand(2, "amazon", "Echo Dot")])
+        self.assertEqual([c.deal.title for c in picked], ["Parlante JBL Go 4 Negro", "Echo Dot"])

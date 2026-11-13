@@ -12,7 +12,7 @@ from app.copywriter import facebook_copy
 from app.database import Database
 from app.image_renderer import MissingProductImage, OfferImageRenderer
 from app.reel_renderer import ReelRenderer
-from app.models import Candidate, DiscountEvidence, utc_now
+from app.models import Candidate, DiscountEvidence, utc_now, variant_key
 from app.publishers.facebook import FacebookPublisher, FacebookPublishError
 from app.publishers.telegram import TelegramPublisher, deal_caption, top_caption
 from app.rates import ExchangeRateProvider
@@ -54,6 +54,8 @@ class OfferPipeline:
     def scan(self) -> ScanReport:
         report = ScanReport()
         usd_rate = self.rate_provider.usd_to_cop()
+        # Another colour (or the other store) of something already posted is not a new deal for followers.
+        posted_variants = self.database.published_variant_keys(self.settings.repost_cooldown_days)
         for source in self.sources:
             try:
                 observations = source.fetch()
@@ -82,7 +84,7 @@ class OfferPipeline:
                     continue
                 if self.database.was_published_recently(
                     deal.source, deal.external_id, self.settings.repost_cooldown_days
-                ):
+                ) or variant_key(deal.title) in posted_variants:
                     continue
                 if not deal.image_url:
                     continue

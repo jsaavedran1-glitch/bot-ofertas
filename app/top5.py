@@ -6,7 +6,7 @@ from decimal import Decimal
 from zoneinfo import ZoneInfo
 
 from app.copywriter import trend_tags
-from app.models import Candidate, from_minor, money, store_name, to_minor
+from app.models import Candidate, from_minor, money, store_name, to_minor, variant_key
 
 NUMBERS = ("1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣")
 MAX_ITEMS, MIN_ITEMS, MAX_PER_STORE = 5, 3, 2
@@ -16,9 +16,12 @@ def pick_top(candidates: list[Candidate]) -> list[Candidate]:
     """Highest-scored candidates (already sorted by score), at most MAX_PER_STORE per store for variety."""
     picked: list[Candidate] = []
     per_store: dict[str, int] = {}
+    keys: set[str] = set()
     for c in candidates:
-        if per_store.get(c.deal.source, 0) >= MAX_PER_STORE:
+        key = variant_key(c.deal.title)
+        if per_store.get(c.deal.source, 0) >= MAX_PER_STORE or key in keys:
             continue
+        keys.add(key)
         picked.append(c)
         per_store[c.deal.source] = per_store.get(c.deal.source, 0) + 1
         if len(picked) == MAX_ITEMS:

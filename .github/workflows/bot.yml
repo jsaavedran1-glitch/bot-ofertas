@@ -42,8 +42,8 @@ jobs:
       TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
       # Claude Sonnet 5.5 (opcional): títulos en español, textos y revisión de la imagen. Sin el secret, plantillas.
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-      # Apagado en las publicaciones hasta aprobar la vista previa (modo ai-preview); poner "true" para activarlo.
-      AI_ENABLED: "false"
+      # Claude en las publicaciones (textos + revisión visual). "false" lo apaga sin borrar la clave.
+      AI_ENABLED: "true"
       META_GRAPH_API_VERSION: "v26.0"
       POST_MODE: "review"
       MIN_DISCOUNT_PCT: "35"

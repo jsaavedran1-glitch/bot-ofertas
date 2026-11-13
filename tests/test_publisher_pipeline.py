@@ -363,7 +363,8 @@ class TopFiveTests(unittest.TestCase):
         from dataclasses import replace
         ids = []
         for i in range(n):
-            d = replace(self.deal, source=source, external_id=f"{source}{i}", price_minor=50_000 + i)
+            d = replace(self.deal, source=source, external_id=f"{source}{i}", price_minor=50_000 + i,
+                        title=f"Producto {source} {i}")
             self.db.create_candidate(d, 90 - i)
             self.db.decide(d.candidate_id, "approved")
             ids.append(d.candidate_id)

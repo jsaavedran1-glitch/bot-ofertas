@@ -7,7 +7,7 @@ from zoneinfo import ZoneInfo
 
 from app.config import Settings
 from app.database import Database
-from app.models import DealObservation, DiscountEvidence, to_minor
+from app.models import DealObservation, DiscountEvidence, to_minor, variant_key
 from app.pipeline import OfferPipeline
 from app.publishers.facebook import FacebookPublisher, FacebookPublishError
 from app.sources import PartnerFeedSource
@@ -38,10 +38,17 @@ PUBLISH_PATTERN = (
 REEL_SOURCES = {"amazon", "exito", "alkosto", "ktronix"}
 
 
-def publish_queues(database: Database, as_reel: bool = False) -> list[list[str]]:
-    """Approved candidates grouped by source, ordered by today's position in PUBLISH_PATTERN."""
+def publish_queues(database: Database, as_reel: bool = False, cooldown_days: int = 7) -> list[list[str]]:
+    """Approved candidates grouped by source, ordered by today's position in PUBLISH_PATTERN.
+    One candidate per product: other colours and the same item in another store are left out, as are
+    products posted in the last `cooldown_days` days."""
+    seen = database.published_variant_keys(cooldown_days)
     by_source: dict[str, list[str]] = {}
-    for c in database.list_candidates(status="approved"):
+    for c in database.list_candidates(status="approved"):  # best score first: the best variant wins
+        key = variant_key(c.deal.title)
+        if key in seen:
+            continue
+        seen.add(key)
         by_source.setdefault(c.deal.source, []).append(c.id)
     start = database.posts_today() % len(PUBLISH_PATTERN)
     order: list[str] = []
@@ -252,7 +259,7 @@ def main() -> int:
                     except (FacebookPublishError, OSError) as exc:
                         print(f"Falló el top 5: {exc}", file=sys.stderr)
                 as_reel = hour in settings.reel_hours and not database.reel_published_this_hour()
-                queues = publish_queues(database, as_reel)
+                queues = publish_queues(database, as_reel, settings.repost_cooldown_days)
                 published = 0
                 while queues and published < settings.max_posts_per_run:
                     next_queues = []
