@@ -13,7 +13,7 @@ from zoneinfo import ZoneInfo
 
 from app.config import Settings
 from app.events import CountdownRenderer, active_event, countdown, countdown_caption
-from app.metrics import MetricsError, PostStats, fetch_page_stats, weekly_report
+from app.metrics import ENOUGH_INTERACTIONS, MetricsError, PostStats, daily_report, fetch_page_stats, weekly_report
 from app.content import ContentRenderer, NewsFeeds, content_caption, load_tips, news_post, next_tip
 from app.database import Database
 from app.models import DealObservation, DiscountEvidence, store_name, to_minor, variant_key
@@ -175,6 +175,46 @@ def build_report(database: Database, end: datetime | None = None, days: int = 7)
     return weekly_report(week, start, end, previous, names)
 
 
+DAILY_PATH = Path("generated") / "informe_diario.md"
+
+
+def planned_posts(settings: Settings, day) -> int:
+    boost = settings.event_boost if active_event(day) else 1.0
+    return sum(round(q * boost) for q in settings.hourly_posts) if settings.hourly_posts else settings.max_posts_per_day
+
+
+def _stats(rows) -> list[PostStats]:
+    return [PostStats(r["post_id"], r["kind"], r["source"], r["published_at"], r["reactions"], r["comments"], r["shares"])
+            for r in rows]
+
+
+def build_daily_report(settings: Settings, database: Database, pipeline: OfferPipeline | None, day) -> str:
+    """Yesterday's (or `day`'s) report; Claude adds suggestions only once there are enough reactions to compare."""
+    start = datetime(day.year, day.month, day.day, tzinfo=ZoneInfo("America/Bogota"))
+    end = start + timedelta(days=1)
+    posts, week = _stats(database.metrics_between(start, end)), _stats(database.metrics_between(end - timedelta(days=7), end))
+    ops = {
+        "planned": planned_posts(settings, day),
+        "errors": database.publish_errors_between(start, end),
+        "new_by_source": database.new_candidates_between(start, end),
+        "queue": sum(len(q) for q in publish_queues(database, False, settings.repost_cooldown_days)),
+        "published_kinds": [kind for _, kind, _, at in database.posts_since(start) if at < end],
+    }
+    names = {src: store_name(src) for src in {p.source for p in posts} | set(ops["new_by_source"])}
+    report = daily_report(posts, week, ops, day, names)
+    engaged = sum(p.interactions for p in week)
+    ai = getattr(pipeline, "ai", None)
+    if engaged < ENOUGH_INTERACTIONS:
+        report += (f"## Recomendaciones\n\nTodavía no hay suficientes reacciones para comparar horas o tiendas "
+                   f"({engaged} interacciones en 7 días; hacen falta {ENOUGH_INTERACTIONS}). Por ahora el informe sirve "
+                   f"para vigilar la operación.\n")
+    elif ai is not None:
+        tips = ai.recommend(report)
+        if tips:
+            report += "## Recomendaciones (Claude)\n\n" + "\n".join(f"- {t}" for t in tips) + "\n"
+    return report
+
+
 def write_report(report: str, path: Path = REPORT_PATH) -> None:
     """Saved for the workflow, which opens it as a GitHub issue, and shown in the run's summary."""
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -185,8 +225,9 @@ def write_report(report: str, path: Path = REPORT_PATH) -> None:
             handle.write(report)
 
 
-def metrics_slot(settings: Settings, database: Database, now: datetime) -> None:
-    """At METRICS_HOURS (first run of the hour) refresh the counts; on Monday at 7 h also write the report."""
+def metrics_slot(settings: Settings, database: Database, now: datetime, pipeline: OfferPipeline | None = None) -> None:
+    """At METRICS_HOURS (first run of the hour) refresh the counts. At 7 h write yesterday's report, and on
+    Mondays the weekly one too."""
     if now.hour not in settings.metrics_hours or now.minute >= 30:
         return
     try:
@@ -194,9 +235,12 @@ def metrics_slot(settings: Settings, database: Database, now: datetime) -> None:
     except MetricsError as exc:
         print(f"Advertencia métricas: {exc}", file=sys.stderr)
         return
-    if now.weekday() == 0 and now.hour == 7:
-        write_report(build_report(database))
-        print("Informe semanal listo.")
+    if now.hour == 7:
+        write_report(build_daily_report(settings, database, pipeline, now.date() - timedelta(days=1)), DAILY_PATH)
+        print("Informe diario listo.")
+        if now.weekday() == 0:
+            write_report(build_report(database))
+            print("Informe semanal listo.")
 
 
 def publish_countdown(settings: Settings, database: Database, today, publisher: FacebookPublisher | None = None) -> bool:
@@ -431,6 +475,8 @@ def parser() -> argparse.ArgumentParser:
     report.add_argument("--days", type=int, default=7)
     report.add_argument("--collect", action="store_true", help="Actualizar las métricas desde Facebook antes")
     report.add_argument("--save", action="store_true", help="Guardarlo para publicarlo como issue en GitHub")
+    report.add_argument("--diario", action="store_true", help="Informe de un día (hoy hasta ahora, o --ayer)")
+    report.add_argument("--ayer", action="store_true", help="Con --diario: el día de ayer completo")
     preview = commands.add_parser("ai-preview", help="Ver los textos de Claude para ofertas reales, sin publicar")
     preview.add_argument("--limit", type=int, default=20)
     return root
@@ -479,7 +525,7 @@ def main() -> int:
                 expired = database.expire_stale(settings.candidate_max_age_hours)
                 if expired:
                     print(f"Vencidas: {expired}")
-                metrics_slot(settings, database, datetime.now(ZoneInfo("America/Bogota")))
+                metrics_slot(settings, database, datetime.now(ZoneInfo("America/Bogota")), pipeline)
                 hour = datetime.now(ZoneInfo("America/Bogota")).hour
                 if hour not in settings.publish_hours:
                     print(f"Fuera de horario de publicación ({hour}h Bogotá); solo se escaneó.")
@@ -491,11 +537,15 @@ def main() -> int:
             demo(database, pipeline)
         elif args.command == "informe":
             if args.collect:
-                collect_metrics(settings, database, days=args.days + 1)
-            report = build_report(database, days=args.days)
+                collect_metrics(settings, database, days=max(args.days, 7) + 1)
+            if args.diario:
+                day = datetime.now(ZoneInfo("America/Bogota")).date() - timedelta(days=1 if args.ayer else 0)
+                report = build_daily_report(settings, database, pipeline, day)
+            else:
+                report = build_report(database, days=args.days)
             print(report)
             if args.save:
-                write_report(report)
+                write_report(report, DAILY_PATH if args.diario else REPORT_PATH)
         elif args.command == "ai-preview":
             return ai_preview(settings, database, pipeline, args.limit)
         return 0

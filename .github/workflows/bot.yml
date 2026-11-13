@@ -115,9 +115,24 @@ jobs:
             dry-run)   python main.py run --dry-run ;;
             review)    python main.py scan ;;
             ai-preview) python main.py ai-preview --limit 12 ;;
-            informe)   python main.py informe --collect --save ;;
+            informe)   python main.py informe --collect --save --diario ;;
             *) echo "Modo no válido: $REQUESTED_MODE"; exit 2 ;;
           esac
+
+      - name: Publicar informe diario
+        if: success() && hashFiles('generated/informe_diario.md') != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Un solo issue abierto "Informe diario" con un comentario por día (GitHub te avisa por correo).
+          n=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --search "Informe diario in:title" \
+                --json number,title --jq '[.[] | select(.title | startswith("Informe diario"))][0].number // empty')
+          if [ -z "$n" ]; then
+            gh issue create --repo "$GITHUB_REPOSITORY" --title "Informe diario · Ojo al Precio" \
+              --body-file generated/informe_diario.md
+          else
+            gh issue comment "$n" --repo "$GITHUB_REPOSITORY" --body-file generated/informe_diario.md
+          fi
 
       - name: Publicar informe semanal
         if: success() && hashFiles('generated/informe_semanal.md') != ''

@@ -488,6 +488,18 @@ class Database:
                 row["published_at"] = datetime.fromisoformat(row["published_at"].replace("Z", "+00:00"))
         return rows
 
+    def publish_errors_between(self, start: datetime, end: datetime) -> list[str]:
+        sql = self._sql("SELECT message FROM publication_errors WHERE created_at>=? AND created_at<? ORDER BY created_at")
+        with self._connection() as conn:
+            rows = conn.execute(sql, (start.astimezone(timezone.utc).isoformat(), end.astimezone(timezone.utc).isoformat())).fetchall()
+        return [str(r["message"]) for r in rows]
+
+    def new_candidates_between(self, start: datetime, end: datetime) -> dict[str, int]:
+        sql = self._sql("SELECT source, COUNT(*) AS n FROM candidates WHERE created_at>=? AND created_at<? GROUP BY source")
+        with self._connection() as conn:
+            rows = conn.execute(sql, (start.astimezone(timezone.utc).isoformat(), end.astimezone(timezone.utc).isoformat())).fetchall()
+        return {str(r["source"]): int(r["n"]) for r in rows}
+
     def content_published_this_hour(self) -> bool:
         local = utc_now().astimezone(ZoneInfo("America/Bogota"))
         start = local.replace(minute=0, second=0, microsecond=0).astimezone(timezone.utc).isoformat()

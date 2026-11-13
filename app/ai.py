@@ -104,6 +104,19 @@ NEWS_SCHEMA = {
     "additionalProperties": False,
 }
 
+ADVICE_SYSTEM = """Eres el analista de "Ojo al Precio", una página de Facebook de Colombia que publica ofertas \
+de forma automática con un bot. Recibes el informe del día. Da hasta 3 recomendaciones concretas para ajustar \
+el bot (horas, tiendas, tipo de publicación, volumen) que salgan de los números del informe, en una frase cada \
+una (máximo 200 caracteres), en español. Si los números no alcanzan para concluir algo, no lo recomiendes. \
+No inventes cifras: usa solo números que aparezcan en el informe."""
+
+ADVICE_SCHEMA = {
+    "type": "object",
+    "properties": {"recomendaciones": {"type": "array", "items": {"type": "string"}}},
+    "required": ["recomendaciones"],
+    "additionalProperties": False,
+}
+
 _MONEY = re.compile(r"[$%]|\bCOP\b|\bUS\$|\bUSD\b", re.IGNORECASE)
 _NUMBER = re.compile(r"\d+(?:[.,]\d+)?")
 _HASHTAG = re.compile(r"^#[^\W_][\w]{1,29}$")
@@ -263,6 +276,13 @@ class ClaudeHelper:
             "question": _valid(data.get("pregunta"), source, 90) or "",
             "hashtags": _hashtags(data.get("hashtags"), source),
         }
+
+    def recommend(self, report: str) -> list[str]:
+        """Up to three suggestions grounded in the report's numbers; [] when Claude can't answer."""
+        data = self._ask(ADVICE_SYSTEM, report[:12000], ADVICE_SCHEMA, max_tokens=800)
+        if not data:
+            return []
+        return [t for t in (_valid_fact(r, report, 220) for r in (data.get("recomendaciones") or [])[:3]) if t]
 
 
 def merge_copy(names: AiCopy | None, text: AiCopy | None) -> AiCopy | None:
