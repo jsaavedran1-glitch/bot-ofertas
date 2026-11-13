@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import argparse
 from datetime import datetime, timezone
+from itertools import zip_longest
+import math
 import sys
+import time
 from zoneinfo import ZoneInfo
 
 from app.config import Settings
@@ -87,6 +90,90 @@ def publish_promo(settings: Settings, database: Database, pipeline: OfferPipelin
             print(f"Advertencia historia promo: {exc}", file=sys.stderr)
     print(f"Promo del día publicada ({promo.key}, {len(promo.deals)} productos): {post_id}")
     return True
+
+
+def posts_due(settings: Settings, database: Database, now: datetime) -> int:
+    """Posts this run should make. With POSTS_PER_HOUR, the run in the first half of the hour makes half of
+    that hour's posts and the one in the second half the rest (runs come every 30 minutes)."""
+    if not settings.hourly_posts:
+        return settings.max_posts_per_run
+    quota = settings.hourly_posts[now.hour]
+    due = quota if now.minute >= 30 else math.ceil(quota / 2)
+    return max(0, due - database.posts_this_hour())
+
+
+def spacing_minutes(now: datetime, posts: int) -> float:
+    """Spread this run's posts over what is left of its half hour: one every 3 to 12 minutes."""
+    if posts <= 1:
+        return 0.0
+    left = 30 - now.minute % 30 - 1
+    return max(3.0, min(12.0, left / posts))
+
+
+def publish_slot(settings: Settings, database: Database, pipeline: OfferPipeline,
+                 now: datetime | None = None, sleep=time.sleep, clock=time.monotonic) -> int:
+    """Publish what this run owes: the day's promo or Top 5 when their hour comes, then deals (a reel first in
+    reel hours), spaced out instead of all at once. Returns how many posts went out."""
+    now = now or datetime.now(ZoneInfo("America/Bogota"))
+    due = posts_due(settings, database, now)
+    if due <= 0:
+        print(f"Cuota de las {now.hour}h ya cumplida.")
+        return 0
+    since = database.minutes_since_last_post()
+    if since is not None and since < settings.min_minutes_between_posts:
+        if not settings.hourly_posts:
+            print(f"Última publicación hace {since:.0f} min; se espera al menos {settings.min_minutes_between_posts}.")
+            return 0
+        sleep((settings.min_minutes_between_posts - since) * 60)
+    gap = spacing_minutes(now, due) * 60
+    start = clock()
+    published = 0
+
+    def wait_turn() -> None:
+        if published:
+            sleep(max(0.0, start + published * gap - clock()))
+
+    if now.hour in settings.promo_hours and not database.promo_published_today():
+        try:
+            published += publish_promo(settings, database, pipeline)
+        except (FacebookPublishError, OSError) as exc:
+            print(f"Falló la promo del día: {exc}", file=sys.stderr)
+    if published < due and now.hour in settings.top_hours and not database.top_published_today():
+        wait_turn()
+        try:
+            result = pipeline.publish_top(database.list_candidates(status="approved", limit=60))
+            if result:
+                print(f"Top {len(result[1])} del día publicado: {result[0]}")
+                published += 1
+            else:
+                print("Top 5: no hay suficientes ofertas válidas; se publica un post normal.")
+        except (FacebookPublishError, OSError) as exc:
+            print(f"Falló el top 5: {exc}", file=sys.stderr)
+    tried: set[str] = set()
+    reel_failed = False
+    while published < due and len(tried) < due * 4:
+        as_reel = (now.hour in settings.reel_hours and not reel_failed
+                   and not database.reel_published_this_hour())
+        queues = publish_queues(database, as_reel, settings.repost_cooldown_days)
+        if as_reel and not queues:
+            as_reel, queues = False, publish_queues(database, False, settings.repost_cooldown_days)
+        # Round-robin across stores, skipping deals that already failed in this run.
+        order = [cid for row in zip_longest(*queues) for cid in row if cid and cid not in tried]
+        if not order:
+            print("No quedan ofertas aprobadas para publicar.")
+            break
+        wait_turn()
+        candidate_id = order[0]
+        tried.add(candidate_id)
+        try:
+            post_id = pipeline.publish(candidate_id, as_reel=as_reel)
+            print(f"{'Reel publicado' if as_reel else 'Publicada'} {candidate_id}: {post_id}")
+            published += 1
+        except Exception as exc:
+            print(f"Falló {candidate_id}: {exc}", file=sys.stderr)
+            reel_failed = reel_failed or as_reel  # one failed reel: photos for the rest of the run
+    print(f"Publicaciones en esta ejecución: {published} de {due}.")
+    return published
 
 
 def show_candidates(database: Database, status: str) -> None:
@@ -251,43 +338,7 @@ def main() -> int:
                 if hour not in settings.publish_hours:
                     print(f"Fuera de horario de publicación ({hour}h Bogotá); solo se escaneó.")
                     return 0
-                since = database.minutes_since_last_post()
-                if since is not None and since < settings.min_minutes_between_posts:
-                    print(f"Última publicación hace {since:.0f} min; se espera al menos {settings.min_minutes_between_posts}.")
-                    return 0
-                if hour in settings.promo_hours and not database.promo_published_today():
-                    try:
-                        if publish_promo(settings, database, pipeline):
-                            return 0
-                    except (FacebookPublishError, OSError) as exc:
-                        print(f"Falló la promo del día: {exc}", file=sys.stderr)
-                if hour in settings.top_hours and not database.top_published_today():
-                    try:
-                        result = pipeline.publish_top(database.list_candidates(status="approved", limit=60))
-                        if result:
-                            print(f"Top {len(result[1])} del día publicado: {result[0]}")
-                            return 0
-                        print("Top 5: no hay suficientes ofertas válidas; se publica un post normal.")
-                    except (FacebookPublishError, OSError) as exc:
-                        print(f"Falló el top 5: {exc}", file=sys.stderr)
-                as_reel = hour in settings.reel_hours and not database.reel_published_this_hour()
-                queues = publish_queues(database, as_reel, settings.repost_cooldown_days)
-                published = 0
-                while queues and published < settings.max_posts_per_run:
-                    next_queues = []
-                    for q in queues:
-                        if published >= settings.max_posts_per_run:
-                            break
-                        candidate_id = q.pop(0)
-                        try:
-                            post_id = pipeline.publish(candidate_id, as_reel=as_reel)
-                            print(f"{'Reel publicado' if as_reel else 'Publicada'} {candidate_id}: {post_id}")
-                            published += 1
-                        except Exception as exc:
-                            print(f"Falló {candidate_id}: {exc}", file=sys.stderr)
-                        if q:
-                            next_queues.append(q)
-                    queues = next_queues
+                publish_slot(settings, database, pipeline)
             else:
                 print("Modo review: usa list, approve y publish para revisar cada oferta.")
         elif args.command == "demo":

@@ -24,6 +24,20 @@ def _parse_hours(value: str) -> frozenset[int]:
     return frozenset(hours or range(24))
 
 
+def _parse_hourly(value: str) -> tuple[int, ...]:
+    """'8:2,9:4,17:8' -> 24 counts, posts to make in each Bogotá hour. Empty = not used."""
+    parts = [p.strip() for p in value.split(",") if p.strip()]
+    if not parts:
+        return ()
+    counts = [0] * 24
+    for part in parts:
+        hour, _, posts = part.partition(":")
+        if not 0 <= int(hour) <= 23 or int(posts) < 0:
+            raise ValueError("POSTS_PER_HOUR usa hora:publicaciones, con horas entre 0 y 23.")
+        counts[int(hour)] = int(posts)
+    return tuple(counts)
+
+
 @dataclass(frozen=True)
 class Settings:
     database_url: str
@@ -59,6 +73,7 @@ class Settings:
     telegram_bot_token: str = ""
     telegram_chat_id: str = ""
     min_minutes_between_posts: int = 0
+    hourly_posts: tuple[int, ...] = ()  # POSTS_PER_HOUR: when set, it decides how many posts go out each hour
     anthropic_api_key: str = ""
     ai_enabled: bool = True
     ai_review: bool = True
@@ -78,6 +93,7 @@ class Settings:
             ).split(",")
             if item.strip()
         )
+        hourly = _parse_hourly(os.getenv("POSTS_PER_HOUR", ""))
         return cls(
             database_url=os.getenv("DATABASE_URL", "sqlite:///ofertas.db").strip(),
             post_mode=mode,
@@ -103,7 +119,9 @@ class Settings:
             meta_graph_api_version=os.getenv("META_GRAPH_API_VERSION", "v26.0").strip(),
             generated_dir=Path(os.getenv("GENERATED_DIR", "generated")),
             affiliate_disclosure=_as_bool(os.getenv("AFFILIATE_DISCLOSURE"), True),
-            publish_hours=_parse_hours(os.getenv("PUBLISH_HOURS", "")),
+            publish_hours=(
+                frozenset(h for h, n in enumerate(hourly) if n) if hourly else _parse_hours(os.getenv("PUBLISH_HOURS", ""))
+            ),
             link_in_comment=_as_bool(os.getenv("LINK_IN_COMMENT"), False),
             reel_hours=frozenset(int(h) for h in os.getenv("REEL_HOURS", "").split(",") if h.strip()),
             stories=_as_bool(os.getenv("STORIES"), False),
@@ -112,6 +130,7 @@ class Settings:
             telegram_bot_token=os.getenv("TELEGRAM_BOT_TOKEN", "").strip(),
             telegram_chat_id=os.getenv("TELEGRAM_CHAT_ID", "").strip(),
             min_minutes_between_posts=int(os.getenv("MIN_MINUTES_BETWEEN_POSTS", "0")),
+            hourly_posts=hourly,
             anthropic_api_key=os.getenv("ANTHROPIC_API_KEY", "").strip(),
             ai_review=_as_bool(os.getenv("AI_REVIEW"), True),
             ai_enabled=_as_bool(os.getenv("AI_ENABLED"), True),

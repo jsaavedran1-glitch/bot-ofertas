@@ -378,6 +378,20 @@ class Database:
             last = datetime.fromisoformat(last.replace("Z", "+00:00"))
         return (utc_now() - last).total_seconds() / 60
 
+    def posts_this_hour(self) -> int:
+        """Facebook posts since the start of the current Bogotá hour (a Top 5 carousel counts once)."""
+        local = utc_now().astimezone(ZoneInfo("America/Bogota"))
+        start = local.replace(minute=0, second=0, microsecond=0).astimezone(timezone.utc).isoformat()
+        sql = self._sql(
+            # A carousel's rows share one timestamp. No LIKE '%': psycopg would read % as a placeholder.
+            "SELECT (SELECT COUNT(CASE WHEN platform<>'facebook_top' THEN 1 END)"
+            " + COUNT(DISTINCT CASE WHEN platform='facebook_top' THEN published_at END)"
+            " FROM publications WHERE published_at>=?)"
+            " + (SELECT COUNT(*) FROM promo_publications WHERE published_at>=?) AS total"
+        )
+        with self._connection() as conn:
+            return int(conn.execute(sql, (start, start)).fetchone()["total"])
+
     def top_published_today(self) -> bool:
         local_day = utc_now().astimezone(ZoneInfo("America/Bogota")).date().isoformat()
         sql = self._sql("SELECT 1 FROM publications WHERE platform='facebook_top' AND local_day=? LIMIT 1")
