@@ -40,6 +40,15 @@ class DatabaseTests(unittest.TestCase):
         stored = [c for c in self.db.list_candidates("pending") if c.deal.external_id == "A"][0].deal
         self.assertEqual((stored.rating, stored.reviews), (4.7, 120))
 
+    def test_private_audio_round_trips_through_the_database(self):
+        from pathlib import Path
+        self.db.put_media("pista.m4a", "musica", b"abc")
+        self.db.put_media("pista.m4a", "musica", b"abcd")  # replacing keeps one copy
+        self.db.put_media("pop.m4a", "efectos", b"xy")
+        folders = self.db.export_media(Path(self.temp.name) / "media")
+        self.assertEqual((folders["musica"] / "pista.m4a").read_bytes(), b"abcd")
+        self.assertEqual((folders["efectos"] / "pop.m4a").read_bytes(), b"xy")
+
     def test_candidate_deduplicates_and_claims_once(self):
         deal = self.deal()
         self.assertTrue(self.db.create_candidate(deal, 40))

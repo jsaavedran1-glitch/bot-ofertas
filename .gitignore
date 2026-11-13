@@ -16,3 +16,9 @@ feeds/*.csv
 .DS_Store
 .env.bak
 !feeds/mercadolibre_afiliados.csv
+# Licensed audio (Meta Sound Collection) must never be published: it lives in the database
+assets/music/*.mp3
+assets/music/*.m4a
+assets/music/*.wav
+assets/music/*.ogg
+assets/sfx/

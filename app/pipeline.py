@@ -133,6 +133,7 @@ class OfferPipeline:
                 self.settings.meta_graph_api_version,
             )
             if as_reel:
+                self._load_media()
                 rate = self.rate_provider.usd_to_cop()
                 video = self.reel_renderer.render_reel(
                     candidate.deal, f"reel_{candidate.id}", usd_cop_rate=rate,
@@ -232,6 +233,21 @@ class OfferPipeline:
             except Exception as exc:
                 print(f"Advertencia Telegram top 5: {exc}", file=sys.stderr)
         return post_id, items
+
+    def _load_media(self) -> None:
+        """Reels audio licensed only for Meta products lives in the database, never in the public repo."""
+        if getattr(self, "_media_loaded", False):
+            return
+        self._media_loaded = True
+        try:
+            folders = self.database.export_media(self.settings.generated_dir / "media")
+        except Exception as exc:  # no audio is better than no reel
+            print(f"Advertencia audio de reels: {exc}", file=sys.stderr)
+            return
+        if "musica" in folders:
+            self.reel_renderer.music_dir = folders["musica"]
+        if "efectos" in folders:
+            self.reel_renderer.sfx_dir = folders["efectos"]
 
     def _revalidate(self, candidate: Candidate):
         for source in self.sources:

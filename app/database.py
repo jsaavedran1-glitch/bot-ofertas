@@ -187,6 +187,14 @@ class Database:
               local_day TEXT NOT NULL
             )
             """,
+            f"""
+            CREATE TABLE IF NOT EXISTS media_assets (
+              name TEXT PRIMARY KEY,
+              kind TEXT NOT NULL,
+              data {"BYTEA" if self.is_postgres else "BLOB"} NOT NULL,
+              updated_at {timestamp_type} NOT NULL
+            )
+            """,
             "CREATE INDEX IF NOT EXISTS idx_candidates_status ON candidates(status, score)",
             "CREATE INDEX IF NOT EXISTS idx_observations_item ON price_observations(source, external_id, observed_at)",
             "CREATE INDEX IF NOT EXISTS idx_publications_day ON publications(platform, local_day)",
@@ -196,6 +204,30 @@ class Database:
                 conn.execute(statement)
         self._add_column("candidates", "rating", "REAL")
         self._add_column("candidates", "reviews", "INTEGER")
+
+    def put_media(self, name: str, kind: str, data: bytes) -> None:
+        """Store a private audio file (music/effects whose license forbids publishing it in the repo)."""
+        with self._transaction() as conn:
+            conn.execute(self._sql("DELETE FROM media_assets WHERE name=?"), (name,))
+            conn.execute(
+                self._sql("INSERT INTO media_assets(name, kind, data, updated_at) VALUES(?, ?, ?, ?)"),
+                (name, kind, data, utc_now().isoformat()),
+            )
+
+    def export_media(self, folder: Path) -> dict[str, Path]:
+        """Write every stored audio file to folder/<kind>/<name>; returns {kind: folder}."""
+        with self._connection() as conn:
+            rows = conn.execute("SELECT name, kind, data FROM media_assets").fetchall()
+        folders: dict[str, Path] = {}
+        for row in rows:
+            target = folder / Path(row["kind"]).name
+            target.mkdir(parents=True, exist_ok=True)
+            path = target / Path(row["name"]).name
+            data = bytes(row["data"])
+            if not path.exists() or path.stat().st_size != len(data):
+                path.write_bytes(data)
+            folders[row["kind"]] = target
+        return folders
 
     def _add_column(self, table: str, column: str, kind: str) -> None:
         """Idempotent ALTER TABLE ... ADD COLUMN (SQLite has no IF NOT EXISTS for columns)."""

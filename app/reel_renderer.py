@@ -14,7 +14,11 @@ from app.scoring import price_cop
 
 W, H, FPS, SECONDS = 1080, 1920, 30, 9
 MUSIC_DIR = Path(__file__).parent.parent / "assets" / "music"
+SFX_DIR = Path(__file__).parent.parent / "assets" / "sfx"
 MUSIC_EXT = {".mp3", ".m4a", ".wav", ".ogg"}
+# Effects synced to the animation: sticker pops, swipe into the price, coins when the new price lands,
+# ding with the savings pill, swipe into the call to action.
+SFX_CUES = (("pop", 0.3), ("whoosh", 1.85), ("monedas", 3.0), ("notificacion", 3.6), ("whoosh", 5.05))
 BIG_TICKET_COP = 400_000  # from here on, "ahorras $X" sells better than "-X%"
 
 
@@ -25,6 +29,33 @@ def music_track(seed: str, folder: Path | None = None) -> Path | None:
     if not tracks:
         return None
     return tracks[int(hashlib.md5(seed.encode()).hexdigest(), 16) % len(tracks)]
+
+
+def sfx_cues(folder: Path | None = None) -> list[tuple[Path, float]]:
+    """(file, second) for each effect present in the folder; empty when there are none."""
+    folder = folder or SFX_DIR
+    if not folder.is_dir():
+        return []
+    files = {p.stem.lower(): p for p in folder.glob("*") if p.suffix.lower() in MUSIC_EXT}
+    return [(files[name], at) for name, at in SFX_CUES if name in files]
+
+
+def audio_args(track: Path | None, cues: list[tuple[Path, float]], first_input: int = 1) -> list[str]:
+    """ffmpeg inputs + filter for the reel soundtrack: looped music under timed effects."""
+    inputs = ["-stream_loop", "-1", "-i", str(track)] if track else ["-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo"]
+    music_gain = "0.6" if cues else "0.7"
+    parts = [f"[{first_input}:a]aresample=44100,aformat=channel_layouts=stereo,atrim=duration={SECONDS},"
+             f"volume={music_gain},afade=t=in:d=0.4,afade=t=out:st={SECONDS - 1}:d=1[m]"]
+    labels = ["[m]"]
+    for i, (path, at) in enumerate(cues, start=first_input + 1):
+        inputs += ["-i", str(path)]
+        parts.append(f"[{i}:a]aresample=44100,aformat=channel_layouts=stereo,adelay=delays={int(at * 1000)}:all=1,volume=0.9[s{i}]")
+        labels.append(f"[s{i}]")
+    if len(labels) > 1:
+        parts.append(f"{''.join(labels)}amix=inputs={len(labels)}:duration=first:normalize=0,alimiter=limit=0.95[a]")
+    else:
+        parts.append("[m]anull[a]")
+    return [*inputs, "-filter_complex", ";".join(parts), "-map", "0:v", "-map", "[a]"]
 
 
 # Key content stays inside Meta's Reels safe zone (Facebook draws its buttons and caption over the
@@ -71,6 +102,9 @@ def reel_hook(deal: DealObservation, price: str, saved: str | None = None) -> tu
 class ReelRenderer(OfferImageRenderer):
     """Renders a 9:16 deal video (MP4, H.264) with the same look as the photo post."""
 
+    music_dir: Path | None = None  # set by the pipeline when the private audio comes from the database
+    sfx_dir: Path | None = None
+
     def render_reel(
         self,
         deal: DealObservation,
@@ -81,19 +115,13 @@ class ReelRenderer(OfferImageRenderer):
     ) -> Path:
         base, photo, texts = self._prepare(deal, usd_cop_rate, product_image_bytes, link_in_comment)
         output = self.output_dir / f"{name}.mp4"
-        track = music_track(deal.external_id)
-        if track:
-            audio_input = ["-stream_loop", "-1", "-i", str(track)]
-            audio_filter = ["-af", f"volume=0.6,afade=t=in:d=0.5,afade=t=out:st={SECONDS - 1}:d=1"]
-        else:
-            audio_input = ["-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo"]
-            audio_filter = []
+        audio = audio_args(music_track(deal.external_id, self.music_dir), sfx_cues(self.sfx_dir))
         cmd = [
             "ffmpeg", "-y", "-loglevel", "error",
             "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{W}x{H}", "-r", str(FPS), "-i", "-",
-            *audio_input,
+            *audio,
             "-t", str(SECONDS), "-c:v", "libx264", "-preset", "medium", "-crf", "20", "-pix_fmt", "yuv420p",
-            *audio_filter, "-c:a", "aac", "-movflags", "+faststart", str(output),
+            "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", str(output),
         ]
         with subprocess.Popen(cmd, stdin=subprocess.PIPE) as proc:
             for i in range(FPS * SECONDS):

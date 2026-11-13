@@ -1,3 +1,8 @@
-Pon aquí 3-5 pistas libres de derechos (.mp3/.m4a) con licencia de uso comercial,
-por ejemplo de YouTube Audio Library o Pixabay Music. El bot rota una por Reel.
-Si la carpeta está vacía, los Reels salen sin música.
+La música y los efectos de los Reels NO van en este repositorio (es público).
+Vienen de Meta Sound Collection, cuya licencia solo permite usarlos dentro de Facebook/Instagram,
+así que se guardan en la base de datos privada y el bot los descarga al generar cada Reel:
+
+    python scripts/upload_media.py ~/Music/OjoAlPrecio
+
+(carpeta con subcarpetas musica/ y efectos/; efectos reconocidos: pop, whoosh, monedas, notificacion).
+Esta carpeta solo sirve para pruebas locales; .gitignore bloquea los archivos de audio.

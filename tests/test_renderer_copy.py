@@ -205,6 +205,34 @@ class DesignTests(unittest.TestCase):
                 self.assertEqual(slide.size, (1080, 1350))
 
 
+class ReelAudioTests(unittest.TestCase):
+    def test_effects_follow_the_animation_and_mix_over_the_music(self):
+        import shutil, subprocess
+        if not shutil.which("ffmpeg"):
+            self.skipTest("ffmpeg no instalado")
+        import app.reel_renderer as rr
+        buffer = BytesIO()
+        Image.new("RGB", (300, 300), "red").save(buffer, format="PNG")
+        with tempfile.TemporaryDirectory() as directory:
+            sfx = Path(directory) / "efectos"
+            sfx.mkdir()
+            for name, freq in (("pop", 300), ("monedas", 2000), ("otro", 500)):
+                subprocess.run(["ffmpeg", "-loglevel", "error", "-f", "lavfi", "-i", f"sine=frequency={freq}:duration=0.3",
+                                str(sfx / f"{name}.wav")], check=True)
+            cues = rr.sfx_cues(sfx)
+            self.assertEqual([(p.stem, t) for p, t in cues], [("pop", 0.3), ("monedas", 3.0)])
+            self.assertIn("adelay=delays=3000", " ".join(rr.audio_args(None, cues)))
+            deal = DealObservation(source="alkosto", external_id="S1", title="Parlante", price_minor=45_900,
+                                   original_price_minor=119_900, evidence=DiscountEvidence.OFFICIAL_ORIGINAL,
+                                   currency="COP", url="https://example.com/s1")
+            renderer = rr.ReelRenderer(Path(directory))
+            renderer.sfx_dir = sfx
+            path = renderer.render_reel(deal, "s1", product_image_bytes=buffer.getvalue())
+            out = subprocess.run(["ffmpeg", "-i", str(path), "-af", "atrim=2.9:3.4,volumedetect", "-f", "null", "-"],
+                                 capture_output=True, text=True).stderr
+            self.assertGreater(float(out.split("max_volume:")[1].split("dB")[0]), -30)  # the coins cue sounds at 3 s
+
+
 class PromoStoryTests(unittest.TestCase):
     def test_square_image_becomes_vertical_story(self):
         from app.reel_renderer import ReelRenderer
