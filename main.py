@@ -18,6 +18,7 @@ from app.content import ContentRenderer, NewsFeeds, content_caption, load_tips, 
 from app.database import Database
 from app.models import DealObservation, DiscountEvidence, store_name, to_minor, variant_key
 from app.pipeline import OfferPipeline
+from app.reel_renderer import ReelRenderer
 from app.publishers.facebook import FacebookPublisher, FacebookPublishError
 from app.sources import PartnerFeedSource
 from app.sources.amazon_rss import AmazonRssSource
@@ -89,16 +90,22 @@ def publish_promo(settings: Settings, database: Database, pipeline: OfferPipelin
             publisher.comment(post_id, promo_links(promo))
         except FacebookPublishError as exc:
             print(f"Advertencia promo: {exc}", file=sys.stderr)
-    if settings.stories:
-        try:
-            story = pipeline.reel_renderer.render_story_from_image(
-                image, f"story_{image.stem}", "¡NO TE LO PIERDAS!"
-            )
-            publisher.publish_story(story)
-        except (FacebookPublishError, OSError) as exc:
-            print(f"Advertencia historia promo: {exc}", file=sys.stderr)
+    post_story(settings, database, publisher, image, "¡NO TE LO PIERDAS!", "Mira la promo completa en nuestra página")
     print(f"Promo del día publicada ({promo.key}, {len(promo.deals)} productos): {post_id}")
     return True
+
+
+def post_story(settings: Settings, database: Database, publisher: FacebookPublisher, image: Path, headline: str,
+               pointer: str) -> None:
+    """Mirror a just-published image post to the Page story, if it is among the hour's first STORIES_PER_HOUR.
+    A story is a bonus: failures only warn."""
+    if not settings.stories or database.posts_this_hour() > settings.stories_per_hour:
+        return
+    try:
+        story = ReelRenderer(settings.generated_dir).render_story_from_image(image, f"story_{image.stem}", headline, pointer)
+        publisher.publish_story(story)
+    except (FacebookPublishError, OSError) as exc:
+        print(f"Advertencia historia: {exc}", file=sys.stderr)
 
 
 def publish_content(settings: Settings, database: Database, pipeline: OfferPipeline,
@@ -129,6 +136,10 @@ def publish_content(settings: Settings, database: Database, pipeline: OfferPipel
             publisher.comment(post_id, f"📌 Fuente: {post.url}")
         except FacebookPublishError as exc:
             print(f"Advertencia contenido: {exc}", file=sys.stderr)
+    if post.kind == "dato":
+        post_story(settings, database, publisher, image, "¡ESTO TE SIRVE!", "Míralo completo en nuestra página")
+    else:
+        post_story(settings, database, publisher, image, "ÚLTIMA NOTICIA", "La fuente está en nuestra página")
     print(f"{'Dato útil' if post.kind == 'dato' else 'Noticia'} publicado ({post.source}): {post_id}")
     return True
 
@@ -202,6 +213,8 @@ def publish_countdown(settings: Settings, database: Database, today, publisher: 
     publisher = publisher or FacebookPublisher(settings.fb_page_id, settings.fb_page_token, settings.meta_graph_api_version)
     post_id = publisher.publish_photo(image, countdown_caption(event, left, stores))
     database.record_content("evento", key, post_id)
+    post_story(settings, database, publisher, image, f"¡SE VIENE EL {event.tag}!" if left else f"¡HOY ES {event.tag}!",
+               "Activa las notificaciones de la página")
     print(f"{event.name}: {'hoy es' if left == 0 else f'faltan {left} días'} publicado: {post_id}")
     return True
 

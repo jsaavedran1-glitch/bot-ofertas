@@ -152,7 +152,8 @@ class ReelRenderer(OfferImageRenderer):
         frame.save(output, format="PNG", optimize=True)
         return output
 
-    def render_story_from_image(self, image_path: Path, name: str, headline: str) -> Path:
+    def render_story_from_image(self, image_path: Path, name: str, headline: str,
+                                pointer: str = "Mira la promo completa en nuestra página") -> Path:
         """Wrap a square post image (e.g. the promo grid) in a 9:16 story frame."""
         frame = self._background()
         draw = ImageDraw.Draw(frame)
@@ -160,7 +161,7 @@ class ReelRenderer(OfferImageRenderer):
         with Image.open(image_path) as post_image:
             post = ImageOps.contain(post_image.convert("RGB"), (1000, 1250), Image.Resampling.LANCZOS)
         frame.paste(post, (W // 2 - post.width // 2, 330))
-        self._story_pointer(frame, "Mira la promo completa en nuestra página", (65, 1620, W - 65, 1700))
+        self._story_pointer(frame, pointer, (65, 1620, W - 65, 1700))
         self.output_dir.mkdir(parents=True, exist_ok=True)
         output = self.output_dir / f"{name}.png"
         frame.save(output, format="PNG", optimize=True)

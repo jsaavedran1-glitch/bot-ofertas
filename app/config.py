@@ -76,6 +76,7 @@ class Settings:
     content_hours: frozenset[int] = frozenset()  # CONTENT_HOURS: the hour's first post is a tip or a news item
     hourly_posts: tuple[int, ...] = ()
     awin_adidas_feed_url: str = ""  # AWIN_ADIDAS_FEED_URL (secret: it carries the Awin API key)
+    stories_per_hour: int = 1  # STORIES_PER_HOUR: only the hour's first N posts also go to the story
     event_boost: float = 1.0  # EVENT_BOOST: posts per hour multiplied by this on Black Friday / Cyber Monday
     countdown_hour: int = 8  # COUNTDOWN_HOUR: "faltan N días" goes out as this hour's first post
     metrics_hours: frozenset[int] = frozenset({7, 13, 23})  # METRICS_HOURS: when to refresh post reactions  # POSTS_PER_HOUR: when set, it decides how many posts go out each hour
@@ -137,6 +138,7 @@ class Settings:
             min_minutes_between_posts=int(os.getenv("MIN_MINUTES_BETWEEN_POSTS", "0")),
             hourly_posts=hourly,
             awin_adidas_feed_url=os.getenv("AWIN_ADIDAS_FEED_URL", "").strip(),
+            stories_per_hour=int(os.getenv("STORIES_PER_HOUR", "1")),
             event_boost=float(os.getenv("EVENT_BOOST", "1")),
             countdown_hour=int(os.getenv("COUNTDOWN_HOUR", "8")),
             metrics_hours=frozenset(int(h) for h in os.getenv("METRICS_HOURS", "7,13,23").split(",") if h.strip()),

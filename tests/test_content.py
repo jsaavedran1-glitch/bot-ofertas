@@ -30,7 +30,11 @@ TIP = ContentPost("dato", "rne", "Cómo frenar las llamadas de publicidad", ("In
 
 class FakePublisher:
     def __init__(self):
-        self.photos, self.comments = [], []
+        self.photos, self.comments, self.stories = [], [], []
+
+    def publish_story(self, image):
+        self.stories.append(image)
+        return f"story_{len(self.stories)}"
 
     def publish_photo(self, image, caption):
         self.photos.append((image, caption))
@@ -125,6 +129,24 @@ class ContentTests(unittest.TestCase):
         # Third time: the tip rests two weeks and the news item was used, so nothing is posted.
         self.assertFalse(main.publish_content(settings, self.db, pipeline, feeds, [TIP], publisher))
         self.assertEqual(feeds.skipped, {"https://sic.example/alerta"})
+
+    def test_only_the_hours_first_post_goes_to_the_story(self):
+        item = NewsItem("SIC", "Alerta por tiendas falsas", "Revise el NIT antes de pagar.", "https://sic.example/a", NOW)
+        texts = {"indice": 0, "titular": "Ojo con las tiendas falsas", "puntos": ["Revisa el NIT", "Antes de pagar"],
+                 "pregunta": "", "hashtags": []}
+        pipeline = SimpleNamespace(ai=ClaudeHelper(client=FakeClient(texts)))
+        settings = self.settings.__class__(**{**self.settings.__dict__, "stories": True, "stories_per_hour": 1})
+        publisher = FakePublisher()
+        main.publish_content(settings, self.db, pipeline, FakeFeeds([item]), [TIP], publisher)   # 1st of the hour
+        main.publish_content(settings, self.db, pipeline, FakeFeeds([item]), [TIP], publisher)   # 2nd: no story
+        self.assertEqual(len(publisher.photos), 2)
+        self.assertEqual(len(publisher.stories), 1)
+        with Image.open(publisher.stories[0]) as story:
+            self.assertEqual(story.size, (1080, 1920))
+        off = self.settings.__class__(**{**self.settings.__dict__, "stories": False})
+        self.db.record_content("dato", "x", "post_x")  # (nothing else this hour matters when stories are off)
+        main.post_story(off, self.db, publisher, publisher.photos[0][0], "h", "p")
+        self.assertEqual(len(publisher.stories), 1)
 
 
 if __name__ == "__main__":

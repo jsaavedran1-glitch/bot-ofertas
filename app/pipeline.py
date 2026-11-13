@@ -204,8 +204,8 @@ class OfferPipeline:
                 self.telegram.send_photo(square, deal_caption(candidate.deal, rate))
             except Exception as exc:
                 print(f"Advertencia Telegram {candidate_id}: {exc}", file=sys.stderr)
-        if self.settings.stories:
-            # Every post is mirrored to the Page story (public). A story is a bonus: failures only warn.
+        if self.story_due():
+            # The hour's first post(s) are mirrored to the Page story (public). A story is a bonus: failures only warn.
             try:
                 if as_reel:
                     publisher.publish_video_story(video)
@@ -217,6 +217,10 @@ class OfferPipeline:
             except (FacebookPublishError, MissingProductImage, OSError) as exc:
                 print(f"Advertencia historia {candidate_id}: {exc}", file=sys.stderr)
         return post_id
+
+    def story_due(self) -> bool:
+        """Stories on, and the post just published is among the hour's first STORIES_PER_HOUR."""
+        return self.settings.stories and self.database.posts_this_hour() <= self.settings.stories_per_hour
 
     def publish_top(self, candidates: list[Candidate], publisher: FacebookPublisher | None = None) -> tuple[str, list[Candidate]] | None:
         """Revalidate, render and post the day's Top 5 carousel. Returns (post_id, items) or None if too few."""
@@ -255,6 +259,13 @@ class OfferPipeline:
                 publisher.comment(post_id, top_links(items))
             except FacebookPublishError as exc:
                 print(f"Advertencia top 5: {exc}", file=sys.stderr)
+        if self.story_due():
+            try:
+                story = self.reel_renderer.render_story_from_image(
+                    images[0], f"story_{images[0].stem}", "TOP 5 DE HOY", "Desliza el carrusel en nuestra página")
+                publisher.publish_story(story)
+            except (FacebookPublishError, OSError) as exc:
+                print(f"Advertencia historia top 5: {exc}", file=sys.stderr)
         if self.telegram:
             try:
                 self.telegram.send_album(images, top_caption([c.deal for c in items], rate))
