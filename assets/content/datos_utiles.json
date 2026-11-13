@@ -1,0 +1,343 @@
+[
+  {
+    "key": "rne-inscribete-gratis",
+    "titulo": "¿Llamadas y SMS de publicidad? Inscríbete en el RNE",
+    "puntos": [
+      "Entra a tramitescrcom.gov.co y busca 'Registro de Números Excluidos'. Es gratis.",
+      "Crea usuario, valida tu correo y marca qué bloquear: SMS, llamadas, chats o email.",
+      "Solo el titular de la línea (móvil o fija) o del correo puede inscribirlo."
+    ],
+    "pregunta": "¿Cuántas llamadas o SMS de publicidad te llegan a la semana?",
+    "hashtags": [
+      "#DejenDeFregar",
+      "#DatoUtil"
+    ],
+    "fuente": "Comisión de Regulación de Comunicaciones (CRC) – Registro de Números Excluidos",
+    "url": "https://www.crcom.gov.co/es/micrositios/comunicados-como-es/registro-numeros-excluidos",
+    "verificado": "Página RNE de la CRC (y su ABC enlazado, vigente desde 15/01/2026): registro en tramitescrcom.gov.co, gratuito, canales SMS/apps-web/correo/llamadas, fijo incluido, solo el titular."
+  },
+  {
+    "key": "black-friday-2026-fechas",
+    "titulo": "Black Friday 2026: anota las fechas",
+    "puntos": [
+      "Black Friday es el viernes 27 de noviembre y Cyber Monday el lunes 30.",
+      "Amazon EE. UU. arranca su Black Friday Week el 19 de noviembre y va hasta el 30.",
+      "Empieza a las 12:01 a.m. hora del Pacífico, o sea, 3:01 a.m. en Colombia."
+    ],
+    "pregunta": "¿Qué estás esperando que baje de precio este Black Friday?",
+    "hashtags": [
+      "#BlackFriday",
+      "#CyberMonday"
+    ],
+    "fuente": "Amazon – About Amazon (FAQ Black Friday 2026, actualizado 10/11/2026)",
+    "url": "https://www.aboutamazon.com/news/retail/when-is-amazon-black-friday-faq",
+    "verificado": "FAQ oficial de Amazon: Black Friday 2026 es el 27/11; Black Friday Week y Cyber Monday van del 19/11 (12:01 a.m. PST) al 30/11; su FAQ de Cyber Monday confirma el 30/11.",
+    "vigente_hasta": "2026-11-30"
+  },
+  {
+    "key": "rne-cuando-empieza-a-funcionar",
+    "titulo": "RNE: ¿desde cuándo dejan de escribirte?",
+    "puntos": [
+      "El bloqueo rige desde el día hábil siguiente; para SMS hay hasta 5 días hábiles.",
+      "Ojo: las empresas a las que autorizaste expresamente sí pueden seguir escribiéndote.",
+      "¿Siguen llegando? Denuncia ante la SIC. Los códigos de verificación no se bloquean."
+    ],
+    "pregunta": "¿Ya te inscribiste en el RNE? ¿Te funcionó?",
+    "hashtags": [
+      "#DejenDeFregar",
+      "#Consumidor"
+    ],
+    "fuente": "CRC – ABC sobre el Registro de Números Excluidos (versión 17)",
+    "url": "https://www.crcom.gov.co/sites/default/files/webcrc/documents/2026-08/ABC-ACTUALIZACION-REGISTRO-NUMEROS-EXCLUIDOS-200826.pdf",
+    "verificado": "ABC de la CRC, preguntas 11-12, 16, 31, 34 y 35: efecto al día hábil siguiente, SMS hasta 5 días hábiles, empresas autorizadas, quejas ante la SIC, mensajes de verificación no se restringen."
+  },
+  {
+    "key": "ley-dejen-de-fregar-horarios",
+    "titulo": "Llamadas y mensajes de publicidad: horarios legales",
+    "puntos": [
+      "Lunes a viernes: solo de 7:00 a.m. a 7:00 p.m.",
+      "Sábados de 8:00 a.m. a 3:00 p.m. Domingos y festivos: nada de nada.",
+      "Aplica a llamadas, SMS, chats y correos; los mensajes deben dejarte cancelarlos."
+    ],
+    "pregunta": "¿Te han llamado a vender algo un domingo? Cuéntanos",
+    "hashtags": [
+      "#DejenDeFregar",
+      "#DerechosDelConsumidor"
+    ],
+    "fuente": "Ley 2300 de 2023 'Dejen de fregar' (Secretaría General del Senado)",
+    "url": "http://www.secretariasenado.gov.co/senado/basedoc/ley_2300_2023.html",
+    "verificado": "Art. 3 (horarios L-V 7am-7pm, sáb 8am-3pm, sin domingos ni festivos) y art. 5 parágrafos 2 y 3 (aplica a SMS, apps, correos y llamadas comerciales; mecanismo para cancelar); texto sin modificaciones, actualizado al 31/10/2026."
+  },
+  {
+    "key": "derecho-de-retracto-5-dias",
+    "titulo": "¿Te arrepentiste de una compra online? Tienes 5 días",
+    "puntos": [
+      "Retracto: 5 días hábiles desde que recibes el producto para echarte para atrás.",
+      "Lo devuelves en las mismas condiciones en que llegó; el envío de vuelta lo pagas tú.",
+      "Te deben reembolsar en máximo 15 días calendario tras pedirlo y devolverlo."
+    ],
+    "pregunta": "¿Alguna vez has usado el derecho de retracto? ¿Cómo te fue?",
+    "hashtags": [
+      "#DerechoDeRetracto",
+      "#ComprasOnline"
+    ],
+    "fuente": "Estatuto del Consumidor, Ley 1480 de 2011 (Secretaría General del Senado) – art. 47",
+    "url": "http://www.secretariasenado.gov.co/senado/basedoc/ley_1480_2011_pr001.html",
+    "verificado": "Art. 47 vigente (modificado por Ley 2439 de 2024): 5 días hábiles desde la entrega, costos de devolución a cargo del consumidor, reembolso máx. 15 días calendario; la Corte (Sentencia C-192 de 2026) extendió ese plazo a todas las ventas a distancia."
+  },
+  {
+    "key": "retracto-cuando-no-aplica",
+    "titulo": "¿Cuándo NO aplica el derecho de retracto?",
+    "puntos": [
+      "Productos hechos a tu medida o personalizados, y bienes perecederos.",
+      "Bienes de uso personal o que por su naturaleza no se pueden devolver.",
+      "Servicios que ya empezaron con tu acuerdo, y apuestas o loterías."
+    ],
+    "pregunta": "¿Sabías que estos productos no tienen retracto?",
+    "hashtags": [
+      "#DerechoDeRetracto",
+      "#DatoUtil"
+    ],
+    "fuente": "Estatuto del Consumidor, Ley 1480 de 2011 (Secretaría General del Senado) – art. 47",
+    "url": "http://www.secretariasenado.gov.co/senado/basedoc/ley_1480_2011_pr001.html",
+    "verificado": "Lista de excepciones del art. 47: servicios ya iniciados, precios atados al mercado financiero, bienes personalizados, bienes no devolvibles o que caducan, apuestas y loterías, perecederos y bienes de uso personal."
+  },
+  {
+    "key": "reversion-del-pago",
+    "titulo": "Reversión del pago: si no llegó o fue fraude",
+    "puntos": [
+      "Aplica si pagaste online con tarjeta débito/crédito, PSE u otro medio electrónico.",
+      "Casos: fraude, compra no autorizada, no llegó, llegó otra cosa o defectuoso.",
+      "En 5 días hábiles: reclama a la tienda, avisa a tu banco y devuelve el producto."
+    ],
+    "pregunta": "¿Te ha tocado pedir una reversión? ¿Te devolvieron la plata?",
+    "hashtags": [
+      "#ReversionDelPago",
+      "#ComprasOnline"
+    ],
+    "fuente": "Estatuto del Consumidor, Ley 1480 de 2011 (Secretaría General del Senado) – art. 51",
+    "url": "http://www.secretariasenado.gov.co/senado/basedoc/ley_1480_2011_pr001.html",
+    "verificado": "Art. 51 vigente: causales, plazo de 5 días hábiles desde que supiste del problema, queja al proveedor, devolución del producto cuando proceda y aviso al emisor del medio de pago."
+  },
+  {
+    "key": "pedido-online-no-llega-30-dias",
+    "titulo": "¿Tu pedido online no llega? Esto dice la ley",
+    "puntos": [
+      "La tienda debe cumplir el plazo de entrega que te informó antes de pagar.",
+      "Si no te dio plazo, tiene máximo 30 días calendario desde el día siguiente al pedido.",
+      "Si se pasa o no hay stock, puedes cancelar y te devuelven todo en 15 días calendario."
+    ],
+    "pregunta": "¿Cuál ha sido la entrega más demorada que te ha tocado?",
+    "hashtags": [
+      "#ComprasOnline",
+      "#DerechosDelConsumidor"
+    ],
+    "fuente": "Estatuto del Consumidor, Ley 1480 de 2011 (Secretaría General del Senado) – art. 50 literal h",
+    "url": "http://www.secretariasenado.gov.co/senado/basedoc/ley_1480_2011_pr001.html",
+    "verificado": "Art. 50 lit. h (modificado por Ley 2439 de 2024): plazo informado o máx. 30 días calendario; si se incumple o no hay disponibilidad, terminación y devolución total sin descuentos en máx. 15 días calendario."
+  },
+  {
+    "key": "garantia-legal-un-ano",
+    "titulo": "Garantía legal: 1 año si no te dicen otra cosa",
+    "puntos": [
+      "Producto nuevo sin término de garantía anunciado: 1 año desde la entrega.",
+      "Usado: 3 meses, salvo que aceptes por escrito comprarlo sin garantía.",
+      "Lo que compras en promoción o con descuento también tiene garantía."
+    ],
+    "pregunta": "¿Revisas el tiempo de garantía antes de comprar?",
+    "hashtags": [
+      "#GarantiaLegal",
+      "#DatoUtil"
+    ],
+    "fuente": "Estatuto del Consumidor, Ley 1480 de 2011 (Secretaría General del Senado) – arts. 7 y 8",
+    "url": "http://www.secretariasenado.gov.co/senado/basedoc/ley_1480_2011.html",
+    "verificado": "Art. 7 parágrafo (productos con descuento o promocionales sujetos a la ley) y art. 8 (1 año para nuevos si no se indica término; 3 meses para usados salvo aceptación escrita sin garantía)."
+  },
+  {
+    "key": "garantia-reparacion-y-falla-repetida",
+    "titulo": "Garantía: reparación gratis y tus opciones si falla",
+    "puntos": [
+      "La reparación es gratis, incluido el transporte del producto si hace falta.",
+      "Si la falla se repite, puedes elegir otra reparación, cambio o devolución del dinero.",
+      "Tienda y fabricante responden juntos: puedes reclamarle directo a la tienda."
+    ],
+    "pregunta": "¿Te han hecho pelear una garantía? ¿Qué pasó?",
+    "hashtags": [
+      "#GarantiaLegal",
+      "#DerechosDelConsumidor"
+    ],
+    "fuente": "Estatuto del Consumidor, Ley 1480 de 2011 (Secretaría General del Senado) – arts. 9, 10 y 11",
+    "url": "http://www.secretariasenado.gov.co/senado/basedoc/ley_1480_2011.html",
+    "verificado": "Art. 11 num. 1-2 (reparación gratuita con transporte; si se repite la falla, a elección del consumidor nueva reparación, devolución o cambio), art. 10 (responsabilidad solidaria productor-proveedor)."
+  },
+  {
+    "key": "reclamo-directo-15-dias",
+    "titulo": "Antes de ir a la SIC: reclama directo a la tienda",
+    "puntos": [
+      "Puedes reclamar por escrito, correo, teléfono o en persona. Guarda la constancia.",
+      "Tiene 15 días hábiles para responder; si dice que no o no contesta, ve a la SIC.",
+      "Demanda por garantía: hasta 1 año después de vencida, si reclamaste a tiempo."
+    ],
+    "pregunta": "¿Una tienda te ha dejado sin respuesta? ¿Cuál?",
+    "hashtags": [
+      "#Reclamos",
+      "#DerechosDelConsumidor"
+    ],
+    "fuente": "Estatuto del Consumidor, Ley 1480 de 2011 (Secretaría General del Senado) – art. 58",
+    "url": "http://www.secretariasenado.gov.co/senado/basedoc/ley_1480_2011_pr001.html",
+    "verificado": "Art. 58 num. 3 y 5: reclamación directa previa (escrita, electrónica, telefónica o verbal), respuesta en 15 días hábiles, acudir a la SIC o juez, plazo de 1 año tras vencer la garantía con prueba de reclamo en vigencia."
+  },
+  {
+    "key": "precio-anunciado-es-el-que-pagas",
+    "titulo": "El precio anunciado es el que pagas",
+    "puntos": [
+      "El precio debe estar en pesos e incluir todos los impuestos.",
+      "Si aparecen dos precios o hay tachones, solo te pueden cobrar el más bajo.",
+      "Puedes exigir factura, pero no tenerla no te quita tus derechos."
+    ],
+    "pregunta": "¿Te han cobrado más en caja que lo que decía el precio?",
+    "hashtags": [
+      "#PrecioJusto",
+      "#DatoUtil"
+    ],
+    "fuente": "Estatuto del Consumidor, Ley 1480 de 2011 (Secretaría General del Senado) – arts. 26 y 27",
+    "url": "http://www.secretariasenado.gov.co/senado/basedoc/ley_1480_2011.html",
+    "verificado": "Art. 26 (precio en pesos con impuestos; con dos o más precios se paga el más bajo) y art. 27 (derecho a constancia/factura; su presentación no es condición para hacer valer derechos)."
+  },
+  {
+    "key": "sic-facilita-reclamo-gratis",
+    "titulo": "SIC Facilita: reclama gratis y sin demandar",
+    "puntos": [
+      "Chat gratuito donde la SIC media entre tú y la empresa para llegar a un acuerdo.",
+      "Sirve para garantías, telecomunicaciones, suplantación y centrales de riesgo.",
+      "Solo funciona si la empresa está inscrita: revisa la lista en sicfacilita.sic.gov.co."
+    ],
+    "pregunta": "¿Conocías SIC Facilita? ¿Lo has usado?",
+    "hashtags": [
+      "#SICFacilita",
+      "#Reclamos"
+    ],
+    "fuente": "Superintendencia de Industria y Comercio (SIC) – SIC Facilita",
+    "url": "https://sicfacilita.sic.gov.co/SICFacilita/index.xhtml",
+    "verificado": "Página oficial: herramienta gratuita y voluntaria, chat dirigido por la SIC, temas cubiertos y lista de proveedores inscritos (el 13/11/2026 incluía p. ej. Alkosto-Ktronix y Almacenes Éxito)."
+  },
+  {
+    "key": "promociones-condiciones-claras",
+    "titulo": "Promociones: las condiciones van en el anuncio",
+    "puntos": [
+      "Tiempo, lugar, modo y requisitos de la promo deben aparecer en la publicidad.",
+      "Si no dice cuándo empieza, rige desde que se anunció.",
+      "Sin fecha final ni límite de unidades, vale hasta que la retiren con igual difusión."
+    ],
+    "pregunta": "¿Te ha tocado una promo con letra pequeña tramposa?",
+    "hashtags": [
+      "#Promociones",
+      "#DerechosDelConsumidor"
+    ],
+    "fuente": "Estatuto del Consumidor, Ley 1480 de 2011 (Secretaría General del Senado) – art. 33",
+    "url": "http://www.secretariasenado.gov.co/senado/basedoc/ley_1480_2011.html",
+    "verificado": "Art. 33: condiciones de tiempo, modo, lugar y requisitos deben informarse; inicio desde que se dio a conocer; sin fecha final ni límite de inventario rige hasta revocarse por los mismos medios e intensidad."
+  },
+  {
+    "key": "tienda-online-datos-obligatorios",
+    "titulo": "¿Tienda online confiable? Revisa estos datos",
+    "puntos": [
+      "Toda tienda online en Colombia debe mostrar razón social, NIT, dirección y contacto.",
+      "También un enlace visible a la página de la SIC. Si falta todo eso, desconfía.",
+      "Antes de pagar te debe mostrar un resumen del pedido con el total final."
+    ],
+    "pregunta": "¿Qué revisas tú antes de comprarle a una tienda que no conoces?",
+    "hashtags": [
+      "#CompraSegura",
+      "#ComprasOnline"
+    ],
+    "fuente": "Estatuto del Consumidor, Ley 1480 de 2011 (Secretaría General del Senado) – art. 50",
+    "url": "http://www.secretariasenado.gov.co/senado/basedoc/ley_1480_2011_pr001.html",
+    "verificado": "Art. 50 lit. a (nombre o razón social, NIT, dirección de notificación, teléfono, correo), lit. d (resumen del pedido antes de pagar) y parágrafo (enlace visible a la autoridad de protección al consumidor)."
+  },
+  {
+    "key": "marketplace-datos-del-vendedor",
+    "titulo": "¿Compraste en un marketplace? Pide datos del vendedor",
+    "puntos": [
+      "La plataforma debe registrar a cada vendedor: nombre, ID, dirección y teléfono.",
+      "Si le compraste y vas a reclamar, puedes consultar esos datos.",
+      "La plataforma también debe entregárselos a la autoridad si los pide."
+    ],
+    "pregunta": "¿Compras más en tiendas oficiales o en marketplaces?",
+    "hashtags": [
+      "#Marketplace",
+      "#CompraSegura"
+    ],
+    "fuente": "Estatuto del Consumidor, Ley 1480 de 2011 (Secretaría General del Senado) – art. 53 (portales de contacto)",
+    "url": "http://www.secretariasenado.gov.co/senado/basedoc/ley_1480_2011_pr001.html",
+    "verificado": "Art. 53: las plataformas que conectan vendedores y compradores deben exigir y registrar nombre, documento, dirección y teléfonos; el comprador puede consultarlos para quejarse."
+  },
+  {
+    "key": "habeas-data-borrar-mis-datos",
+    "titulo": "¿Una empresa tiene tus datos? Pide que los borren",
+    "puntos": [
+      "Mándale un reclamo pidiendo suprimir tus datos o revocar tu autorización.",
+      "Tiene 15 días hábiles para responder (puede alargarlo máximo 8 días hábiles más).",
+      "Si no cumple, quéjate ante la SIC. No aplica si debes seguir ahí por ley o contrato."
+    ],
+    "pregunta": "¿Qué empresa te escribe sin que le hayas dado tus datos?",
+    "hashtags": [
+      "#HabeasData",
+      "#DatosPersonales"
+    ],
+    "fuente": "Ley 1581 de 2012 (Secretaría General del Senado) y Decreto 1377 de 2013 (Función Pública)",
+    "url": "http://www.secretariasenado.gov.co/senado/basedoc/ley_1581_2012.html",
+    "verificado": "Ley 1581 arts. 8, 15 y 16 (reclamo de supresión, 15 + 8 días hábiles, queja a la SIC tras agotarlo); Decreto 1377 art. 9 en funcionpublica.gov.co (supresión en todo momento salvo deber legal o contractual)."
+  },
+  {
+    "key": "tarjetas-psn-region",
+    "titulo": "Tarjetas PSN: revisa la región antes de comprar",
+    "puntos": [
+      "El código debe ser de la misma región de tu cuenta PSN (en físicas, mira la bandera).",
+      "Una tarjeta de EE. UU. no sirve en una cuenta de Colombia, y viceversa.",
+      "Cada código se usa una sola vez y el saldo no se pasa a otra cuenta."
+    ],
+    "pregunta": "¿Tu cuenta de PlayStation es de Colombia o de otro país?",
+    "hashtags": [
+      "#PlayStation",
+      "#Gaming"
+    ],
+    "fuente": "PlayStation – Soporte: cómo canjear un código de cupón en PlayStation Store",
+    "url": "https://www.playstation.com/es-co/support/store/redeem-ps-store-voucher-code/",
+    "verificado": "Página de soporte es-co: el cupón debe ser de la misma región de la cuenta (bandera en cupones físicos), códigos de un solo uso y no se pueden transferir fondos ni contenido entre cuentas."
+  },
+  {
+    "key": "tarjetas-xbox-moneda-y-pais",
+    "titulo": "Tarjetas Xbox: deben coincidir con el país de tu cuenta",
+    "puntos": [
+      "Una tarjeta en una moneda solo carga cuentas de un país donde esa moneda es oficial.",
+      "El saldo no se convierte a otra moneda ni se pasa a otra persona o cuenta.",
+      "Salvo que la ley diga otra cosa, no se cambia por efectivo ni se reembolsa."
+    ],
+    "pregunta": "¿Te ha pasado comprar una tarjeta que no te dejó canjear?",
+    "hashtags": [
+      "#Xbox",
+      "#Gaming"
+    ],
+    "fuente": "Microsoft – Términos y condiciones de las tarjetas regalo",
+    "url": "https://support.microsoft.com/es-es/accounts-billing/microsoft-gift-cards-terms-and-conditions",
+    "verificado": "Términos (vía microsoft.com/cardterms): denominaciones en una moneda solo para cuentas en la jurisdicción de esa moneda, saldo no convertible ni transferible, sin canje por efectivo salvo ley; ficha de Microsoft Store Colombia lo confirma."
+  },
+  {
+    "key": "reclamo-online-numero-de-radicado",
+    "titulo": "Reclamos online: exige tu número de radicado",
+    "puntos": [
+      "La tienda online debe tener un canal fácil para tus peticiones, quejas y reclamos.",
+      "Al radicar, te debe dar un número con la fecha y hora del reclamo.",
+      "También una forma de hacerle seguimiento. Guarda ese número como prueba."
+    ],
+    "pregunta": "¿Te han dado número de radicado cuando reclamas?",
+    "hashtags": [
+      "#Reclamos",
+      "#ComprasOnline"
+    ],
+    "fuente": "Estatuto del Consumidor, Ley 1480 de 2011 (Secretaría General del Senado) – art. 50 literal g",
+    "url": "http://www.secretariasenado.gov.co/senado/basedoc/ley_1480_2011_pr001.html",
+    "verificado": "Art. 50 lit. g (modificado por Ley 2439 de 2024): canales de atención con número de registro o radicado, fecha y hora, y mecanismo de seguimiento."
+  }
+]

@@ -1,0 +1,32 @@
+[
+  {
+    "name": "PlayStation Blog LATAM",
+    "url": "https://blog.latam.playstation.com/feed/",
+    "lang": "es"
+  },
+  {
+    "name": "Xbox Wire",
+    "url": "https://news.xbox.com/en-us/feed/",
+    "lang": "en"
+  },
+  {
+    "name": "Samsung Newsroom Colombia",
+    "url": "https://news.samsung.com/co/feed",
+    "lang": "es"
+  },
+  {
+    "name": "Apple Newsroom (Latinoamérica)",
+    "url": "https://www.apple.com/la/newsroom/rss-feed.rss",
+    "lang": "es"
+  },
+  {
+    "name": "CRC – Comisión de Regulación de Comunicaciones",
+    "url": "https://www.crcom.gov.co/es/rss.xml",
+    "lang": "es"
+  },
+  {
+    "name": "About Amazon",
+    "url": "https://www.aboutamazon.com/rss/feed.rss",
+    "lang": "en"
+  }
+]

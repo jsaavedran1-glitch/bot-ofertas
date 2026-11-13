@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from types import SimpleNamespace
 from pathlib import Path
 import tempfile
@@ -75,12 +75,19 @@ class ContentTests(unittest.TestCase):
         self.assertIsNone(next_tip([TIP, other], recent, now=NOW))                          # all too recent
 
     def test_the_bundled_tip_bank_is_complete(self):
-        tips = load_tips()
+        tips = load_tips(today=date(2026, 11, 13))
+        self.assertGreaterEqual(len(tips), 15)
         self.assertEqual(len({t.key for t in tips}), len(tips))
         for t in tips:
-            self.assertTrue(t.url.startswith("https://"), t.key)
+            # The Senate's law pages only answer over http; everything else is https.
+            self.assertTrue(t.url.startswith(("https://", "http://www.secretariasenado.gov.co/")), t.key)
             self.assertTrue(2 <= len(t.points) <= 3 and all(len(p) <= 95 for p in t.points), t.key)
             self.assertLessEqual(len(t.title), 70, t.key)
+
+    def test_dated_tips_expire(self):
+        keys = lambda day: {t.key for t in load_tips(today=day)}
+        self.assertIn("black-friday-2026-fechas", keys(date(2026, 11, 30)))
+        self.assertNotIn("black-friday-2026-fechas", keys(date(2026, 12, 1)))
 
     def test_claude_news_text_cannot_invent_numbers(self):
         item = parse_feed("PlayStation Blog", RSS)[0]

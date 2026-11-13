@@ -8,13 +8,14 @@ their source, and the link goes in the first comment.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 from html import unescape
 import json
 from pathlib import Path
 import re
 import xml.etree.ElementTree as ET
+from zoneinfo import ZoneInfo
 
 import requests
 from PIL import Image, ImageDraw
@@ -49,11 +50,15 @@ class NewsItem:
     published: datetime
 
 
-def load_tips(path: Path = TIPS_PATH) -> list[ContentPost]:
+def load_tips(path: Path = TIPS_PATH, today: date | None = None) -> list[ContentPost]:
+    """The tip bank, minus tips past their "vigente_hasta" date (e.g. this year's Black Friday dates)."""
     if not path.is_file():
         return []
+    today = today or datetime.now(timezone.utc).astimezone(ZoneInfo("America/Bogota")).date()
     tips = []
     for t in json.loads(path.read_text(encoding="utf-8")):
+        if t.get("vigente_hasta") and date.fromisoformat(t["vigente_hasta"]) < today:
+            continue
         tips.append(ContentPost("dato", t["key"], t["titulo"], tuple(t["puntos"]), t.get("pregunta", ""),
                                 tuple(t.get("hashtags", ())), t["fuente"], t["url"]))
     return tips
@@ -180,17 +185,22 @@ class ContentRenderer(OfferImageRenderer):
             draw.rounded_rectangle((52, y, W - 52, y + box_h), radius=30, fill=WHITE)
             draw.ellipse((78, y + box_h // 2 - 32, 142, y + box_h // 2 + 32), fill=YELLOW)
             draw.text((110, y + box_h // 2), str(i), anchor="mm", font=self._font(36, weight="Black"), fill=NAVY)
-            pfont, plines = self._fit_lines(draw, point, W - 52 - 172 - 36, max_lines=3, start=40, minimum=28, weight="Bold")
-            ph = int(pfont.size * 1.18)
+            for size in range(40, 25, -2):  # largest size whose lines fit inside the box with margin
+                pfont, plines = self._fit_lines(draw, point, W - 52 - 172 - 40, max_lines=3, start=size, minimum=size,
+                                                weight="Bold")
+                ph = int(pfont.size * 1.18)
+                if ph * len(plines) <= box_h - 44:
+                    break
             ty = y + (box_h - ph * len(plines)) // 2
             for pl in plines:
                 draw.text((172, ty), pl, font=pfont, fill=NAVY)
                 ty += ph
             y += box_h + 24
 
-        source = f"Fuente: {post.source}"
-        draw.text((54, H - 172), source, anchor="lm", font=self._fit_font(draw, source, W - 108, 28, 20, weight="SemiBold"),
-                  fill=MUTED)
+        short = re.sub(r"\s*\([^)]*\)", "", post.source)  # "(Secretaría General del Senado)" stays in the caption
+        sfont, slines = self._fit_lines(draw, f"Fuente: {short}", W - 108, max_lines=1, start=28, minimum=20,
+                                        weight="SemiBold")
+        draw.text((54, H - 172), slines[0], anchor="lm", font=sfont, fill=MUTED)
         self._footer(canvas, draw, W, H)
         output = self.output_dir / f"{name}.png"
         canvas.save(output, format="PNG", optimize=True)
