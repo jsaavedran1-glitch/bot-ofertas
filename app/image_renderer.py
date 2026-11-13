@@ -15,7 +15,10 @@ from PIL import Image, ImageDraw, ImageFont, ImageOps, UnidentifiedImageError
 from app.models import DealObservation, DiscountEvidence, from_minor, money, store_name, to_minor
 
 
-CANVAS = (1080, 1080)
+CANVAS = (1080, 1080)  # square: promo grid
+POST_CANVAS = (1080, 1350)  # 4:5 vertical: fills ~20% more of the phone screen in the feed
+NAVY, PANEL, WHITE, MUTED = "#08182F", "#0E2647", "#FFFFFF", "#AFC0D6"
+YELLOW, RED, GREEN = "#FFD21F", "#FF3B3B", "#3DDC84"
 MAX_IMAGE_BYTES = 8 * 1024 * 1024
 MAX_REDIRECTS = 3
 Image.MAX_IMAGE_PIXELS = 25_000_000
@@ -69,107 +72,112 @@ class OfferImageRenderer:
         usd_cop_rate: Decimal | None = None,
         require_image: bool = False,
     ) -> Path:
+        """Vertical 4:5 deal card: big product photo, discount burst, huge price, savings pill."""
         self.output_dir.mkdir(parents=True, exist_ok=True)
-        canvas = Image.new("RGB", CANVAS, "#071426")
+        W, H = POST_CANVAS
+        canvas = Image.new("RGB", POST_CANVAS, NAVY)
         draw = ImageDraw.Draw(canvas)
-        for y in range(CANVAS[1]):
-            ratio = y / CANVAS[1]
-            color = (7 + int(8 * ratio), 20 + int(18 * ratio), 38 + int(26 * ratio))
-            draw.line((0, y, CANVAS[0], y), fill=color)
-
-        orange = "#FFB11B"
-        white = "#FFFFFF"
-        muted = "#A9B5C5"
-        draw.rounded_rectangle((42, 38, 1038, 136), radius=28, fill="#0E223A")
-        source_display = store_name(deal.source).upper()
-        src_font = self._fit_font(draw, source_display, 900, 46, 30)
-        draw.text((540, 87), source_display, anchor="mm", font=src_font, fill=orange)
-
-        # Left card: title at top, product image below
-        draw.rounded_rectangle((42, 166, 582, 864), radius=36, fill="#FFFFFF")
-        title_font, title_lines = self._fit_lines(draw, deal.title, 488, max_lines=3, start=34, minimum=22)
-        ty = 186
-        for line in title_lines:
-            draw.text((65, ty), line, font=title_font, fill="#071426")
-            ty += title_font.size + 7
-        title_bottom = ty + 4
+        for y in range(H):
+            r = y / H
+            draw.line((0, y, W, y), fill=(8 + int(10 * r), 24 + int(22 * r), 48 + int(40 * r)))
 
         product = self._load_product_image(product_image_bytes or self._download(deal.image_url))
         if product is None and require_image:
             raise MissingProductImage("La oferta no tiene foto del producto; no se publica.")
-        img_area_top = title_bottom
-        img_center_y = img_area_top + (864 - img_area_top) // 2
+
+        # Header: store chip + tagline
+        store = store_name(deal.source).upper()
+        chip_font = self._fit_font(draw, store, 420, 40, 26)
+        chip_w = int(draw.textlength(store, font=chip_font)) + 64
+        draw.rounded_rectangle((48, 44, 48 + chip_w, 120), radius=38, fill=WHITE)
+        draw.text((48 + chip_w // 2, 82), store, anchor="mm", font=chip_font, fill=NAVY)
+        self._paste_emoji(canvas, (48 + chip_w + 22, 60), "🔥", 44)
+        draw.text((48 + chip_w + 76, 82), "OFERTA DEL DÍA", anchor="lm", font=self._font(34, bold=True), fill=YELLOW)
+
+        # Product card
+        card = (48, 150, W - 48, 735)
+        draw.rounded_rectangle(card, radius=44, fill=WHITE)
         if product is None:
-            self._draw_follow_cta(canvas, draw, (70, img_area_top + 20, 554, 854))
+            self._draw_follow_cta(canvas, draw, (card[0] + 30, card[1] + 30, card[2] - 30, card[3] - 30))
         else:
-            product = ImageOps.contain(product, (470, 864 - img_area_top - 20), Image.Resampling.LANCZOS)
-            x = 312 - product.width // 2
-            y = img_center_y - product.height // 2
-            canvas.paste(product, (x, y), product if product.mode == "RGBA" else None)
+            product = ImageOps.contain(product, (card[2] - card[0] - 120, card[3] - card[1] - 80), Image.Resampling.LANCZOS)
+            cx, cy = (card[0] + card[2]) // 2, (card[1] + card[3]) // 2
+            canvas.paste(product, (cx - product.width // 2, cy - product.height // 2), product if product.mode == "RGBA" else None)
 
-        # Right side: badge + pricing (no title)
-        badge = f"-{deal.discount_pct}%"
-        draw.rounded_rectangle((625, 181, 994, 293), radius=30, fill=orange)
-        draw.text((809, 237), badge, anchor="mm", font=self._font(64, bold=True), fill="#071426")
+        # Discount burst overlapping the card's top-right corner
+        self._burst(draw, (W - 160, 232), 128, f"-{deal.discount_pct}%")
 
-        # Emoji overlays
-        self._paste_emoji(canvas, (1000, 190), "🔥", 60)
-        self._paste_emoji(canvas, (628, 345), "⚡", 44)
+        # Title
+        title_font, title_lines = self._fit_lines(draw, deal.title, W - 140, max_lines=2, start=44, minimum=30)
+        ty = 758
+        for line in title_lines:
+            draw.text((W // 2, ty), line, anchor="ma", font=title_font, fill=WHITE)
+            ty += title_font.size + 10
 
         in_cop = deal.currency == "USD" and bool(usd_cop_rate)
 
-        def shown(minor: int) -> str:
-            if in_cop:
-                return money(to_minor(from_minor(minor, "USD") * usd_cop_rate, "COP"), "COP")
-            return money(minor, deal.currency)
+        def cop(minor: int) -> int:
+            return to_minor(from_minor(minor, "USD") * usd_cop_rate, "COP") if in_cop else minor
 
-        label = "PRECIO ACTUAL"
-        draw.text((680, 390), label, font=self._font(23, bold=True), fill=muted)
-        price_text = shown(deal.price_minor)
-        price_font = self._fit_font(draw, price_text, 330, 64, 40)
-        draw.text((680, 430), price_text, font=price_font, fill=orange)
-        if in_cop:
-            usd_text = f"{money(deal.price_minor, 'USD')} · valor aprox. en COP"
-            draw.text((680, 508), usd_text, font=self._fit_font(draw, usd_text, 340, 24, 18), fill=muted)
+        currency = "COP" if in_cop else deal.currency
+        price_y = ty + 8
+        draw.text((W // 2, price_y), "AHORA", anchor="ma", font=self._font(30, bold=True), fill=MUTED)
+        price = money(cop(deal.price_minor), currency).replace(" COP", "")
+        price_font = self._fit_font(draw, price, W - 160, 128, 70)
+        draw.text((W // 2, price_y + 36), price, anchor="ma", font=price_font, fill=YELLOW)
+        y = price_y + 36 + price_font.size + 14
 
         if deal.original_price_minor:
+            label = "ANTES " if deal.evidence == DiscountEvidence.OFFICIAL_ORIGINAL else "PRECIO TÍPICO "
+            before = money(cop(deal.original_price_minor), currency).replace(" COP", "")
+            bfont = self._font(40, bold=True)
+            lw, bw = draw.textlength(label, font=self._font(30, bold=True)), draw.textlength(before, font=bfont)
+            x0 = W // 2 - int(lw + bw) // 2
+            draw.text((x0, y + 6), label, font=self._font(30, bold=True), fill=MUTED)
+            draw.text((x0 + lw, y), before, font=bfont, fill="#D3D9E2")
             if deal.evidence == DiscountEvidence.OFFICIAL_ORIGINAL:
-                reference_label = "ANTES"
-            else:
-                reference_label = "PRECIO TÍPICO OBSERVADO"
-            draw.text((680, 585), reference_label, font=self._font(20, bold=True), fill=muted)
-            reference = shown(deal.original_price_minor)
-            ref_font = self._fit_font(draw, reference, 360, 38, 28)
-            draw.text((680, 621), reference, font=ref_font, fill="#D3D9E2")
-            if deal.evidence == DiscountEvidence.OFFICIAL_ORIGINAL:
-                ref_w = draw.textlength(reference, font=ref_font)
-                draw.line((680, 643, 680 + ref_w, 643), fill="#FF6B6B", width=4)
-            self._paste_emoji(canvas, (628, 586), "💰", 44)
+                draw.line((x0 + lw, y + 24, x0 + lw + bw, y + 24), fill=RED, width=5)
+            y += 60
+            saved = money(cop(deal.original_price_minor) - cop(deal.price_minor), currency).replace(" COP", "")
+            pill = f"AHORRAS {saved}"
+            pfont = self._fit_font(draw, pill, W - 200, 40, 28)
+            pw = int(draw.textlength(pill, font=pfont)) + 70
+            draw.rounded_rectangle((W // 2 - pw // 2, y, W // 2 + pw // 2, y + 62), radius=31, fill=GREEN)
+            draw.text((W // 2, y + 31), pill, anchor="mm", font=pfont, fill=NAVY)
+            y += 76
+        if in_cop:
+            note = f"Precio aprox. en pesos · US${from_minor(deal.price_minor, 'USD'):,.2f}"
+            draw.text((W // 2, y), note, anchor="ma", font=self._font(24, bold=True), fill=MUTED)
 
-        if product is not None:
-            self._draw_follow_cta(canvas, draw, (625, 690, 1038, 872), compact=True)
-
-        draw.rounded_rectangle((42, 900, 1038, 1038), radius=28, fill="#0E223A")
-        if self._logo_footer:
-            lw, lh = self._logo_footer.size
-            canvas.paste(self._logo_footer, (72, 969 - lh // 2), self._logo_footer)
-            txt_x = 72 + lw + 24
-        else:
-            txt_x = 72
-        draw.text((txt_x, 925), "OJO AL PRECIO", font=self._font(26, bold=True), fill=white)
-        tag_w = max(300, 990 - txt_x)
-        tag_font, tag_lines = self._fit_lines(draw, "Descuentos limitados cada día, ¡corre y aprovecha la oferta!", tag_w, max_lines=2, start=26, minimum=18)
-        ty = 963
-        for line in tag_lines:
-            draw.text((txt_x, ty), line, font=tag_font, fill=muted)
-            ty += tag_font.size + 4
-        self._paste_emoji(canvas, (1000, 948), "🔥", 44)
+        # Footer
+        draw.rounded_rectangle((48, H - 118, W - 48, H - 40), radius=30, fill=PANEL)
+        if self._logo:
+            lw2, lh2 = self._logo.size
+            canvas.paste(self._logo, (76, H - 79 - lh2 // 2), self._logo)
+        follow = "Síguenos y activa las notificaciones"
+        draw.text((W - 130, H - 79), follow, anchor="rm", font=self._fit_font(draw, follow, 560, 28, 20), fill=WHITE)
+        self._paste_emoji(canvas, (W - 116, H - 102), "🔔", 46)
 
         output = self.output_dir / f"{candidate_id}.png"
         temporary = self.output_dir / f".{candidate_id}.tmp.png"
         canvas.save(temporary, format="PNG", optimize=True, compress_level=9)
         temporary.replace(output)
         return output
+
+    def _burst(self, draw: ImageDraw.ImageDraw, center: tuple[int, int], radius: int, text: str) -> None:
+        """Red starburst sticker with the discount."""
+        import math
+        cx, cy = center
+        points = []
+        for i in range(32):
+            r = radius if i % 2 == 0 else radius * 0.84
+            a = math.pi * 2 * i / 32 - math.pi / 2
+            points.append((cx + r * math.cos(a), cy + r * math.sin(a)))
+        draw.polygon([(x + 6, y + 8) for x, y in points], fill="#04101F")
+        draw.polygon(points, fill=RED)
+        font = self._fit_font(draw, text, int(radius * 1.45), 92, 50)
+        draw.text((cx, cy - 12), text, anchor="mm", font=font, fill=WHITE)
+        draw.text((cx, cy + font.size // 2 + 8), "DCTO", anchor="mm", font=self._font(28, bold=True), fill=WHITE)
 
     def _download(self, url: str) -> bytes | None:
         if not url:

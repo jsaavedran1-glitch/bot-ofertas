@@ -25,7 +25,7 @@ class RendererTests(unittest.TestCase):
             )
             path = OfferImageRenderer(Path(directory)).render(deal, "long")
             with Image.open(path) as output:
-                self.assertEqual(output.size, (1080, 1080))
+                self.assertEqual(output.size, (1080, 1350))
                 self.assertEqual(output.format, "PNG")
 
     def test_corrupt_product_image_uses_placeholder(self):

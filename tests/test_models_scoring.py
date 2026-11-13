@@ -36,7 +36,7 @@ class ModelsAndScoringTests(unittest.TestCase):
         deal = self.deal(evidence=DiscountEvidence.OWN_HISTORY)
         copy = facebook_copy(deal, None)
         self.assertIn("Precio típico observado", copy)
-        self.assertNotIn("Antes:", copy)
+        self.assertNotIn("antes", copy.lower())
 
     def test_money_uses_integer_minor_units(self):
         self.assertEqual(to_minor("39.99", "USD"), 3999)
