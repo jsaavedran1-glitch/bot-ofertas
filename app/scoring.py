@@ -51,6 +51,26 @@ def qualifies(
     )
 
 
-def score(deal: DealObservation) -> int:
+def price_cop(deal: DealObservation, usd_cop_rate: Decimal | None) -> int | None:
+    if deal.currency == "COP":
+        return deal.price_minor
+    if usd_cop_rate is None:
+        return None
+    return int(Decimal(deal.price_minor) / Decimal(100) * usd_cop_rate)
+
+
+def score(deal: DealObservation, usd_cop_rate: Decimal | None = None) -> int:
+    """Queue priority: deeper discount first, then impulse-buy prices (< $500.000) over big-ticket items."""
     evidence_bonus = 20 if deal.evidence == DiscountEvidence.OFFICIAL_ORIGINAL else 10
-    return min(100, deal.discount_pct + evidence_bonus)
+    price = price_cop(deal, usd_cop_rate)
+    if price is None:
+        price_bonus = 0
+    elif price < 200_000:
+        price_bonus = 25
+    elif price < 500_000:
+        price_bonus = 15
+    elif price < 1_500_000:
+        price_bonus = 0
+    else:
+        price_bonus = -20
+    return deal.discount_pct + evidence_bonus + price_bonus

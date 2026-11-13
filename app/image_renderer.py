@@ -188,7 +188,7 @@ class OfferImageRenderer:
                     continue
                 response.raise_for_status()
                 mime = response.headers.get("Content-Type", "").split(";", 1)[0].lower()
-                if mime not in {"image/jpeg", "image/png", "image/webp"}:
+                if mime not in {"image/jpeg", "image/png", "image/webp", "image/avif"}:
                     response.close()
                     return None
                 declared = int(response.headers.get("Content-Length", "0") or 0)

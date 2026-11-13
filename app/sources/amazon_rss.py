@@ -16,17 +16,18 @@ from app.sources.base import DealSource, SourceError
 # Amazon removed public RSS feeds; using DealNews as a deal aggregator for Amazon items.
 # ponytail: Amazon deals link to an affiliate-tagged search (no ASIN in the feed); switch to /dp/ASIN once PA-API is available.
 AFFILIATE_TAG = "ojoalprecio10-20"
+MIN_PRICE_USD = 10
 
-_GAMING = re.compile(
-    r"xbox|playstation|ps5|ps4|dualsense|nintendo|switch|steam deck|gaming|gamer|console|controller|headset|joystick",
-    re.IGNORECASE,
-)
-# (feed, title filter): Amazon deals limited to shoes, video games and gaming gear from Electronics.
+# (feed, title filter): DealNews categories with the most Amazon deals.
 _FEEDS = [
-    ("https://www.dealnews.com/c280/Clothing-Accessories/Shoes/?rss=1", None),
+    ("https://www.dealnews.com/c142/Electronics/?rss=1", None),
+    ("https://www.dealnews.com/c39/Computers/?rss=1", None),
+    ("https://www.dealnews.com/c186/Gaming-Toys/?rss=1", None),
     ("https://www.dealnews.com/c191/Gaming-Toys/Video-Games/?rss=1", None),
-    ("https://www.dealnews.com/c186/Gaming-Toys/?rss=1", _GAMING),
-    ("https://www.dealnews.com/c142/Electronics/?rss=1", _GAMING),
+    ("https://www.dealnews.com/c196/Home-Garden/?rss=1", None),
+    ("https://www.dealnews.com/c756/Health-Beauty/?rss=1", None),
+    ("https://www.dealnews.com/c211/Sports-Fitness/?rss=1", None),
+    ("https://www.dealnews.com/c280/Clothing-Accessories/Shoes/?rss=1", None),
 ]
 
 _RETAILER_SOURCE = {"amazon": "amazon"}
@@ -97,7 +98,7 @@ class AmazonRssSource(DealSource):
             return None
 
         # Skip category/collection sales — not single-product deals
-        if re.search(r"\bup to\b|\bfrom \$|\bdeals at\b", title, re.IGNORECASE):
+        if re.search(r"\bup to\b|\bfrom \$|\bdeals at\b|\bhaul\b|flash sale|deals under|\bcents\b", title, re.IGNORECASE):
             return None
 
         id_match = _DEAL_ID_RE.search(link)
@@ -109,7 +110,7 @@ class AmazonRssSource(DealSource):
         price, orig = _extract_prices(description)
         if price is None:
             price, orig = _extract_prices(title)
-        if price is None or price <= 0:
+        if price is None or price < MIN_PRICE_USD:  # sub-US$10 trinkets don't make good posts
             return None
 
         # Discount %

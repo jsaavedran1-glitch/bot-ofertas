@@ -10,7 +10,7 @@ from urllib3.util.retry import Retry
 from app.models import DealObservation, DiscountEvidence, to_minor
 from app.sources.base import DealSource, SourceError
 
-APPLIANCE_QUERIES = ("televisor", "nevera", "consola")
+APPLIANCE_QUERIES = ("televisor", "consola", "audifonos", "freidora de aire", "parlante", "smartwatch", "celular")
 GROCERY_QUERIES = ("detergente", "cafe", "aceite", "arroz", "atun", "cerveza", "papel higienico")
 _UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36"
 

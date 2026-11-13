@@ -77,7 +77,7 @@ class OfferPipeline:
                     continue
                 if not deal.image_url:
                     continue
-                if self.database.create_candidate(deal, score(deal)):
+                if self.database.create_candidate(deal, score(deal, usd_rate)):
                     report.candidates_created.append(deal.candidate_id)
         return report
 

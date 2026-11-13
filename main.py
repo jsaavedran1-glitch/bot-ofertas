@@ -35,11 +35,11 @@ def build_runtime(settings: Settings, include_sources: bool = True) -> tuple[Dat
     return database, OfferPipeline(settings, database, sources)
 
 
-# Every 10 posts: 3 Mercado Libre, 2 Éxito, 2 Alkosto, 2 Ktronix, 1 Amazon. Other sources are not published.
+# Every 10 posts: 3 Mercado Libre, 3 Amazon, 2 Alkosto, 1 Ktronix, 1 Éxito. A missing source is skipped.
 PUBLISH_PATTERN = (
-    "mercadolibre", "exito", "alkosto",
-    "mercadolibre", "ktronix", "amazon",
-    "mercadolibre", "exito", "alkosto", "ktronix",
+    "mercadolibre", "amazon", "alkosto",
+    "mercadolibre", "amazon", "ktronix",
+    "mercadolibre", "amazon", "alkosto", "exito",
 )
 REEL_SOURCES = {"mercadolibre", "exito", "alkosto", "ktronix"}
 

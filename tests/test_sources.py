@@ -3,7 +3,7 @@ import json
 import tempfile
 import unittest
 
-from app.models import DiscountEvidence
+from app.models import DealObservation, DiscountEvidence
 from app.sources.mercadolibre import MercadoLibreSource
 from app.sources.partner_feed import PartnerFeedSource
 
@@ -103,7 +103,7 @@ class DealNewsSourceTests(unittest.TestCase):
             xmlns:media="http://search.yahoo.com/mrss/">
           <title>{title}</title>
           <link>https://www.dealnews.com/Some-Deal/22206491.html?iref=rss</link>
-          <description>Now $9, down from $21.99.</description>
+          <description>Now $19, down from $41.99.</description>
           <dealnews:retailer>{retailer}</dealnews:retailer>
           <media:content url="https://d.dlnws.com/1/x.jpg?h=125&amp;w=103"/>
         </item>""")
@@ -111,13 +111,14 @@ class DealNewsSourceTests(unittest.TestCase):
     def test_amazon_deal_gets_tagged_search_link_and_woot_is_ignored(self):
         from app.sources.amazon_rss import AmazonRssSource
         src = AmazonRssSource()
-        amazon = src._parse_item(self._item("Amazon", "Granicell AA Batteries 16-Pack for $9"))
+        amazon = src._parse_item(self._item("Amazon", "Granicell AA Batteries 16-Pack for $19"))
         self.assertTrue(amazon.url.startswith("https://www.amazon.com/s?"))
         self.assertIn("tag=ojoalprecio10-20", amazon.url)
         self.assertIn("Granicell", amazon.url)
         self.assertTrue(amazon.affiliate)
         self.assertIn("h=600", amazon.image_url)
         self.assertIsNone(src._parse_item(self._item("Woot! An Amazon Company", "Refurb Bose Speaker for $9")))
+        self.assertIsNone(src._parse_item(self._item("Amazon", "Amazon Haul $1 Flash Sale for Deals under $1")))
 
 
 class _Resp:
@@ -191,3 +192,18 @@ class ColombiaStoreTests(unittest.TestCase):
         self.assertIn("/indexes/alkostoIndexAlgoliaPRD/query", url)
         self.assertIn("objectID", kwargs["json"]["params"])
         self.assertEqual(kwargs["headers"]["Referer"], "https://www.alkosto.com/")
+
+
+class ScoreTests(unittest.TestCase):
+    def test_cheap_deep_discounts_rank_above_big_ticket_items(self):
+        from decimal import Decimal
+        from app.scoring import score
+        def deal(price, before, currency="COP"):
+            return DealObservation(source="x", external_id=str(price), title="t", price_minor=price,
+                                   original_price_minor=before, evidence=DiscountEvidence.OFFICIAL_ORIGINAL,
+                                   currency=currency, url="https://x.co")
+        cheap = deal(150_000, 300_000)            # 50%, < $200k
+        fridge = deal(1_650_000, 3_300_000)       # 50%, big ticket
+        self.assertGreater(score(cheap), score(fridge))
+        usd = deal(2_000, 4_000, "USD")           # US$20 ≈ $80k COP
+        self.assertEqual(score(usd, Decimal("4000")), score(cheap))
