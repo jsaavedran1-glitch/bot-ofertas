@@ -37,14 +37,29 @@ def _hook(deal: DealObservation, usd_cop_rate: Decimal | None = None) -> str:
             f"📉 {short} está {pct}% por debajo de su precio típico: {now}",
             f"👀 {short} hoy a {now}, {pct}% menos de lo usual",
         ])
-    hooks = [
-        f"🔥 -{pct}% en {short}: ahora {now}",
-        f"🚨 ¡Bajó de precio! {short} de {before} a {now}" if before else f"🚨 ¡Bajó de precio! {short} a {now}",
-        f"💥 {short} a solo {now} (antes {before})" if before else f"💥 {short} a solo {now}",
-        f"💰 Ahorra {saved} en {short}" if saved else f"💰 {short} a {now}",
-        f"🏷️ {short} con {pct}% de descuento: {now}",
-    ]
+    if saved and _price_cop(deal, usd_cop_rate) >= BIG_TICKET_COP:
+        # "Rule of 100": on expensive items the amount saved feels bigger than the percentage.
+        hooks = [
+            f"💰 Ahorra {saved} en {short}",
+            f"🚨 ¡{saved} menos! {short} ahora a {now}",
+            f"💥 {short}: de {before} a {now}",
+        ]
+    else:
+        hooks = [
+            f"🔥 -{pct}% en {short}: ahora {now}",
+            f"🏷️ {short} con {pct}% de descuento: {now}",
+            f"🚨 ¡Bajó {pct}%! {short} a solo {now}",
+        ]
     return _pick(deal, hooks)
+
+
+BIG_TICKET_COP = 400_000  # ~US$100
+
+
+def _price_cop(deal: DealObservation, usd_cop_rate: Decimal | None) -> int:
+    if deal.currency == "USD":
+        return int(from_minor(deal.price_minor, "USD") * (usd_cop_rate or Decimal("4000")))
+    return deal.price_minor
 
 
 _QUESTIONS = [

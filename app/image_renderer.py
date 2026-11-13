@@ -8,6 +8,7 @@ from pathlib import Path
 import socket
 from urllib.parse import urljoin, urlparse
 import warnings
+from zoneinfo import ZoneInfo
 
 import requests
 from PIL import Image, ImageDraw, ImageFont, ImageOps, UnidentifiedImageError
@@ -100,9 +101,18 @@ class OfferImageRenderer:
         if product is None:
             self._draw_follow_cta(canvas, draw, (card[0] + 30, card[1] + 30, card[2] - 30, card[3] - 30))
         else:
-            product = ImageOps.contain(product, (card[2] - card[0] - 120, card[3] - card[1] - 80), Image.Resampling.LANCZOS)
-            cx, cy = (card[0] + card[2]) // 2, (card[1] + card[3]) // 2
+            # leave the bottom strip of the card for the "verified" stamp
+            product = ImageOps.contain(product, (card[2] - card[0] - 120, card[3] - card[1] - 130), Image.Resampling.LANCZOS)
+            cx, cy = (card[0] + card[2]) // 2, (card[1] + card[3]) // 2 - 28
             canvas.paste(product, (cx - product.width // 2, cy - product.height // 2), product if product.mode == "RGBA" else None)
+        # Real urgency: when the price was checked (no fake countdowns)
+        checked = deal.observed_at.astimezone(ZoneInfo("America/Bogota")).strftime("%H:%M")
+        stamp = f"Precio verificado hoy {checked}"
+        sfont = self._font(24, bold=True)
+        sw = int(draw.textlength(stamp, font=sfont))
+        draw.rounded_rectangle((card[0] + 24, card[3] - 58, card[0] + 24 + sw + 74, card[3] - 18), radius=20, fill="#EEF2F7")
+        self._paste_emoji(canvas, (card[0] + 34, card[3] - 54), "⏰", 32)
+        draw.text((card[0] + 74, card[3] - 38), stamp, anchor="lm", font=sfont, fill="#334155")
 
         # Discount burst overlapping the card's top-right corner
         self._burst(draw, (W - 160, 232), 128, f"-{deal.discount_pct}%")
