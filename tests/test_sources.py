@@ -6,6 +6,7 @@ import unittest
 from app.models import DealObservation, DiscountEvidence
 from app.sources.mercadolibre import MercadoLibreSource
 from app.sources.partner_feed import PartnerFeedSource
+from app.sources.base import SourceError
 
 
 class FakeResponse:
@@ -207,3 +208,58 @@ class ScoreTests(unittest.TestCase):
         self.assertGreater(score(cheap), score(fridge))
         usd = deal(2_000, 4_000, "USD")           # US$20 ≈ $80k COP
         self.assertEqual(score(usd, Decimal("4000")), score(cheap))
+
+
+class _AffResp:
+    def __init__(self, url="", payload=None, ok=True):
+        self.url, self._payload, self.ok = url, payload or {}, ok
+
+    def json(self):
+        return self._payload
+
+
+class _AffSession:
+    def __init__(self):
+        self.headers = {}
+        self.calls = []
+
+    def head(self, url, **kwargs):
+        self.calls.append(("head", url))
+        return _AffResp(url="https://www.mercadolibre.com.co/freidora-de-aire/p/MCO22334455?pdp=1")
+
+    def get(self, url, **kwargs):
+        self.calls.append(("get", url))
+        return _AffResp(payload={"name": "Freidora de Aire 4.5 L", "pictures": [{"url": "https://http2.mlstatic.com/f.jpg"}]})
+
+
+class MercadoLibreAffiliateTests(unittest.TestCase):
+    def _source(self, rows):
+        import tempfile, os
+        from app.sources.ml_affiliates import MercadoLibreAffiliateSource
+        directory = tempfile.mkdtemp()
+        path = os.path.join(directory, "af.csv")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("link,precio,antes,titulo,foto,hasta\n" + "\n".join(rows) + "\n")
+        session = _AffSession()
+        return MercadoLibreAffiliateSource(path, lambda: "tok", session), session
+
+    def test_short_affiliate_link_gets_title_photo_from_catalog(self):
+        src, session = self._source(['https://mercadolibre.com/sec/1AbCd,"$199.900","$349.900",,,'])
+        deal = src.fetch()[0]
+        self.assertEqual((deal.source, deal.external_id, deal.currency), ("mercadolibre", "MCO22334455", "COP"))
+        self.assertEqual(deal.title, "Freidora de Aire 4.5 L")
+        self.assertEqual(deal.image_url, "https://http2.mlstatic.com/f.jpg")
+        self.assertEqual(deal.url, "https://mercadolibre.com/sec/1AbCd")
+        self.assertEqual(deal.discount_pct, 42)
+        self.assertTrue(deal.affiliate)
+        self.assertEqual(src.revalidate(deal).price_minor, deal.price_minor)
+
+    def test_expired_rows_are_skipped_and_bad_rows_are_reported(self):
+        src, _ = self._source([
+            "https://mercadolibre.com/sec/x,100000,200000,Algo,https://f.jpg,2000-01-01",
+            "https://www.mercadolibre.com.co/x/p/MCO123456,200000,100000,,,",
+        ])
+        with self.assertRaises(SourceError):
+            src.fetch()
+        src2, _ = self._source(["https://mercadolibre.com/sec/x,100000,200000,Algo,https://f.jpg,2000-01-01"])
+        self.assertEqual(src2.fetch(), [])

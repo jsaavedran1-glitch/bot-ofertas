@@ -15,3 +15,4 @@ feeds/*.csv
 *.log
 .DS_Store
 .env.bak
+!feeds/mercadolibre_afiliados.csv
