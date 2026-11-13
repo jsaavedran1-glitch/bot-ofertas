@@ -98,7 +98,10 @@ def _valid(text: object, title: str, limit: int) -> str | None:
 def _short_name(text: object, title: str, limit: int = 50) -> str | None:
     """A long Spanish name is cut at the last whole word instead of being thrown away."""
     if isinstance(text, str) and len(" ".join(text.split())) > limit:
-        text = " ".join(text.split())[:limit].rsplit(" ", 1)[0].rstrip(" ,-de")
+        words = " ".join(text.split())[:limit].rsplit(" ", 1)[0].split()
+        while words and words[-1].lower().strip(",-") in {"de", "del", "con", "y", "para", "la", "el", "en", "-"}:
+            words.pop()  # don't end on a connector ("... con")
+        text = " ".join(words).rstrip(",-")
     return _valid(text, title, limit)
 
 

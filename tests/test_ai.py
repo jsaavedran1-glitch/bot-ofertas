@@ -78,6 +78,9 @@ class ClaudeNamesTests(unittest.TestCase):
         names = ClaudeHelper(client=FakeClient(long_name)).write_names(AMAZON)
         self.assertLessEqual(len(names.short_name), 50)
         self.assertTrue("Cafetera espresso Philips Baristina con molino integrado".startswith(names.short_name))
+        nike = replace(AMAZON, title="Nike Air Zoom Pegasus 41 running")
+        names = ClaudeHelper(client=FakeClient(dict(NAMES, nombre_corto="Tenis de running para hombre Pegasus de Nike con amortiguación"))).write_names(nike)
+        self.assertEqual(names.short_name, "Tenis de running para hombre Pegasus de Nike")
 
     def test_refusal_or_api_error_falls_back_to_templates(self):
         self.assertIsNone(ClaudeHelper(client=FakeClient(NAMES, stop_reason="refusal")).write_names(AMAZON))
