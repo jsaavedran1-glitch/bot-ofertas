@@ -73,6 +73,12 @@ class ClaudeNamesTests(unittest.TestCase):
         self.assertIn(AMAZON.title, call["messages"][0]["content"])
         self.assertEqual(names.short_name, "Cafetera espresso Philips Baristina")
 
+    def test_long_names_are_cut_at_a_whole_word(self):
+        long_name = dict(NAMES, nombre_corto="Cafetera espresso Philips Baristina con molino integrado y espumador")
+        names = ClaudeHelper(client=FakeClient(long_name)).write_names(AMAZON)
+        self.assertLessEqual(len(names.short_name), 50)
+        self.assertTrue("Cafetera espresso Philips Baristina con molino integrado".startswith(names.short_name))
+
     def test_refusal_or_api_error_falls_back_to_templates(self):
         self.assertIsNone(ClaudeHelper(client=FakeClient(NAMES, stop_reason="refusal")).write_names(AMAZON))
         self.assertIsNone(ClaudeHelper(client=FakeClient(error=RuntimeError("down"))).write_names(AMAZON))

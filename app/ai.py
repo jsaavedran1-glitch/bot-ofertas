@@ -95,6 +95,13 @@ def _valid(text: object, title: str, limit: int) -> str | None:
     return text
 
 
+def _short_name(text: object, title: str, limit: int = 50) -> str | None:
+    """A long Spanish name is cut at the last whole word instead of being thrown away."""
+    if isinstance(text, str) and len(" ".join(text.split())) > limit:
+        text = " ".join(text.split())[:limit].rsplit(" ", 1)[0].rstrip(" ,-de")
+    return _valid(text, title, limit)
+
+
 def _hashtags(values: object, title: str) -> tuple[str, ...]:
     """Up to two clean hashtags (one word, no prices), never repeating the ones we always add."""
     tags: list[str] = []
@@ -154,7 +161,7 @@ class ClaudeHelper:
         if not data:
             return None
         copy = AiCopy(
-            short_name=_valid(data.get("nombre_corto"), deal.title, 50),
+            short_name=_short_name(data.get("nombre_corto"), deal.title),
             title_es=_valid(data.get("titulo_es"), deal.title, max(160, len(deal.title) + 40)),
         )
         return copy if copy.short_name or copy.title_es else None
