@@ -26,8 +26,18 @@ class MercadoLibreTokenManager:
         self.database = database
         self.session = session or requests.Session()
 
+    def _has_stored_user_token(self) -> bool:
+        if not self.settings.token_encryption_key:
+            return False
+        with self.database._connection() as conn:
+            row = conn.execute(
+                self.database._sql("SELECT 1 FROM integration_credentials WHERE provider='mercadolibre'")
+            ).fetchone()
+        return row is not None
+
     def access_token(self) -> str:
-        if not self.settings.ml_refresh_token:
+        # A user token seeded by scripts/ml_authorize.py lives encrypted in the DB and rotates there.
+        if not self.settings.ml_refresh_token and not self._has_stored_user_token():
             # Try client_credentials if we have app credentials
             if self.settings.ml_client_id and self.settings.ml_client_secret:
                 return self._client_credentials()
