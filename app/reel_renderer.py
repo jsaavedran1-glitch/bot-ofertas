@@ -9,7 +9,7 @@ import subprocess
 from PIL import Image, ImageDraw, ImageOps
 
 from app.image_renderer import GREEN, MUTED, NAVY, PANEL, RED, WHITE, YELLOW, MissingProductImage, OfferImageRenderer
-from app.models import DealObservation, DiscountEvidence, from_minor, money, store_name, to_minor
+from app.models import DealObservation, DiscountEvidence, display_title, from_minor, money, store_name, to_minor
 from app.scoring import price_cop
 
 W, H, FPS, SECONDS = 1080, 1920, 30, 9
@@ -128,11 +128,11 @@ class ReelRenderer(OfferImageRenderer):
         """Wrap a square post image (e.g. the promo grid) in a 9:16 story frame."""
         frame = self._background()
         draw = ImageDraw.Draw(frame)
-        draw.text((W // 2, 330), headline, anchor="mm", font=self._fit_font(draw, headline, 980, 64, 36), fill=YELLOW)
-        with Image.open(image_path) as square:
-            post = square.convert("RGB").resize((1020, 1020), Image.Resampling.LANCZOS)
-        frame.paste(post, (30, 450))
-        self._story_pointer(frame, "Mira la promo completa en nuestra página", (65, 1560, W - 65, 1640))
+        draw.text((W // 2, 250), headline, anchor="mm", font=self._fit_font(draw, headline, 980, 72, 36, weight="Black"), fill=YELLOW)
+        with Image.open(image_path) as post_image:
+            post = ImageOps.contain(post_image.convert("RGB"), (1000, 1250), Image.Resampling.LANCZOS)
+        frame.paste(post, (W // 2 - post.width // 2, 330))
+        self._story_pointer(frame, "Mira la promo completa en nuestra página", (65, 1620, W - 65, 1700))
         self.output_dir.mkdir(parents=True, exist_ok=True)
         output = self.output_dir / f"{name}.png"
         frame.save(output, format="PNG", optimize=True)
@@ -177,7 +177,7 @@ class ReelRenderer(OfferImageRenderer):
             "before_label": "ANTES" if official else "PRECIO TÍPICO",
             "before": self._text_layer(shown(before), 52, "#D3D9E2") if before else None,
             "strike": official,
-            "now": self._text_layer(shown(now), 124, YELLOW, max_width=820, minimum=60),
+            "now": self._text_layer(shown(now), 132, YELLOW, max_width=820, minimum=60, weight="Black"),
             "saved": self._pill(f"AHORRAS {saved}") if saved else None,
             "note": f"Precio aprox. en pesos · US${from_minor(deal.price_minor, 'USD'):,.2f}" if in_cop else None,
             "cta": self._cta("Link de la oferta en los comentarios" if link_in_comment else "Link de la oferta en la descripción"),
@@ -198,11 +198,9 @@ class ReelRenderer(OfferImageRenderer):
         img = self._background()
         draw = ImageDraw.Draw(img)
         # Brand on top (visible full screen; the feed's 4:5 crop starts below it)
-        if self._logo_footer:
-            lw, lh = self._logo_footer.size
-            img.paste(self._logo_footer, (W // 2 - lw // 2, 180 - lh // 2), self._logo_footer)
-        else:
-            draw.text((W // 2, 180), "OJO AL PRECIO", anchor="mm", font=self._font(48, bold=True), fill=WHITE)
+        size = 84
+        width = (size + 14 if self._icon else 0) + int(draw.textlength("OJO AL PRECIO", font=self._font(size // 2, weight="Black")))
+        self._brand(img, draw, W // 2 - width // 2, 180, size=size)
         # Store chip + tagline, as in the photo post
         store = store_name(deal.source).upper()
         chip_font = self._fit_font(draw, store, 330, 40, 26)
@@ -211,9 +209,9 @@ class ReelRenderer(OfferImageRenderer):
         draw.text((CARD[0] + chip_w // 2, HEADER_Y + 36), store, anchor="mm", font=chip_font, fill=NAVY)
         self._paste_emoji(img, (CARD[0] + chip_w + 22, HEADER_Y + 14), "🔥", 44)
         draw.text((CARD[0] + chip_w + 76, HEADER_Y + 36), "OFERTA DEL DÍA", anchor="lm",
-                  font=self._font(34, bold=True), fill=YELLOW)
+                  font=self._font(34, weight="Black"), fill=YELLOW)
         draw.rounded_rectangle(CARD, radius=48, fill=WHITE)
-        font, lines = self._fit_lines(draw, deal.title, 900, max_lines=2, start=44, minimum=30)
+        font, lines = self._fit_lines(draw, display_title(deal.title), 900, max_lines=2, start=44, minimum=30)
         y = TITLE_Y
         for line in lines:
             draw.text((W // 2, y), line, anchor="ma", font=font, fill=WHITE)
@@ -221,7 +219,7 @@ class ReelRenderer(OfferImageRenderer):
         # Footer (under Facebook's caption when full screen; nothing essential here)
         draw.rounded_rectangle(FOOTER, radius=40, fill=PANEL)
         follow = "Síguenos y activa las notificaciones"
-        ffont = self._fit_font(draw, follow, 760, 32, 22)
+        ffont = self._fit_font(draw, follow, 760, 32, 22, weight="Bold")
         x = W // 2 - 28 - int(draw.textlength(follow, font=ffont)) // 2
         draw.text((x, (FOOTER[1] + FOOTER[3]) // 2), follow, anchor="lm", font=ffont, fill=WHITE)
         self._paste_emoji(img, (x + int(draw.textlength(follow, font=ffont)) + 14, FOOTER[1] + 17), "🔔", 46)
@@ -241,9 +239,10 @@ class ReelRenderer(OfferImageRenderer):
         self._burst(ImageDraw.Draw(layer), (BURST_BOX // 2, BURST_BOX // 2), BURST_R, text)
         return layer.rotate(-8, resample=Image.Resampling.BICUBIC)
 
-    def _text_layer(self, text: str, size: int, fill: str, max_width: int = 900, minimum: int = 36) -> Image.Image:
+    def _text_layer(self, text: str, size: int, fill: str, max_width: int = 900, minimum: int = 36,
+                    weight: str = "ExtraBold") -> Image.Image:
         probe = ImageDraw.Draw(Image.new("RGBA", (1, 1)))
-        font = self._fit_font(probe, text, max_width, size, minimum)
+        font = self._fit_font(probe, text, max_width, size, minimum, weight=weight)
         layer = Image.new("RGBA", (int(probe.textlength(text, font=font)) + 20, font.size + 40), (0, 0, 0, 0))
         ImageDraw.Draw(layer).text((10, 20), text, font=font, fill=fill)
         return layer
@@ -262,7 +261,7 @@ class ReelRenderer(OfferImageRenderer):
         layer = Image.new("RGBA", (940, 420), (0, 0, 0, 0))
         d = ImageDraw.Draw(layer)
         self._paste_emoji(layer, (470 - 55, 0), emoji, 110)
-        font = min((self._fit_font(d, line, 880, 104, 56) for line in lines), key=lambda f: f.size)
+        font = min((self._fit_font(d, line, 880, 104, 56, weight="Black") for line in lines), key=lambda f: f.size)
         for i, line in enumerate(lines):
             d.text((470, 190 + i * (font.size + 22)), line, anchor="mm", font=font, fill=YELLOW if i else WHITE,
                    stroke_width=4, stroke_fill=NAVY)
@@ -272,7 +271,7 @@ class ReelRenderer(OfferImageRenderer):
         layer = Image.new("RGBA", (900, 430), (0, 0, 0, 0))
         d = ImageDraw.Draw(layer)
         d.rounded_rectangle((0, 0, 899, 429), radius=44, fill=PANEL, outline=YELLOW, width=4)
-        head = self._font(58, bold=True)
+        head = self._font(58, weight="Black")
         d.text((450, 62), "¡NO TE PIERDAS", anchor="mm", font=head, fill=YELLOW)
         d.text((450, 128), "NINGUNA OFERTA!", anchor="mm", font=head, fill=YELLOW)
         body = self._font(32, bold=True)

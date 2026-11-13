@@ -400,7 +400,7 @@ class TopFiveTests(unittest.TestCase):
         self.assertEqual(len(items), 5)
         feed = [kw for u, kw in session.calls if u.endswith("/feed")]
         self.assertEqual(len(feed), 1)
-        self.assertEqual(sum(k.startswith("attached_media") for k in feed[0]["data"]), 5)
+        self.assertEqual(sum(k.startswith("attached_media") for k in feed[0]["data"]), 6)  # cover + 5
         self.assertIn("TOP 5", feed[0]["data"]["message"])
         self.assertTrue(any(u.endswith("/page_top_1/comments") for u, _ in session.calls))
         self.assertTrue(self.db.top_published_today())

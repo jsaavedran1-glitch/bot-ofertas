@@ -202,15 +202,20 @@ class OfferPipeline:
         if len(items) < MIN_ITEMS:
             return None
         rate = self.rate_provider.usd_to_cop()
-        images = []
+        images, kept = [], []
         for c in items:
             try:
-                images.append(self.renderer.render(c.deal, f"top_{c.id}", usd_cop_rate=rate, require_image=True))
+                images.append(self.renderer.render(c.deal, f"top_{c.id}", usd_cop_rate=rate, require_image=True,
+                                                   tag=f"TOP {len(kept) + 1} DE HOY"))
+                kept.append(c)
             except MissingProductImage:
                 continue
-        items = [c for c in items if any(img.stem == f"top_{c.id}" for img in images)]
+        items = kept
         if len(items) < MIN_ITEMS:
             return None
+        cover = getattr(self.renderer, "render_top_cover", None)
+        if cover:
+            images.insert(0, cover([c.deal for c in items], f"top_cover_{items[0].id}", usd_cop_rate=rate))
         publisher = publisher or FacebookPublisher(
             self.settings.fb_page_id, self.settings.fb_page_token, self.settings.meta_graph_api_version
         )

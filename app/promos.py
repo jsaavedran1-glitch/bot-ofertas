@@ -8,9 +8,9 @@ from zoneinfo import ZoneInfo
 
 from PIL import Image, ImageDraw, ImageOps
 
-from app.image_renderer import CANVAS, OfferImageRenderer
+from app.image_renderer import MUTED, NAVY, POST_CANVAS, RED, WHITE, YELLOW, OfferImageRenderer
 from app.copywriter import trend_tags
-from app.models import DealObservation, money, store_name
+from app.models import DealObservation, display_title, money, store_name
 
 # Brand -> search terms. The brand is rotated by day so consecutive days feature different brands.
 BRANDS: tuple[tuple[str, tuple[str, ...]], ...] = (
@@ -112,64 +112,62 @@ def promo_copy(promo: Promo, now: datetime | None = None, link_in_comment: bool 
 
 
 class PromoRenderer(OfferImageRenderer):
-    ORANGE, WHITE, MUTED, NAVY, PANEL = "#FFB11B", "#FFFFFF", "#A9B5C5", "#071426", "#0E223A"
+    """4:5 "promo del día": brand headline, discount burst and a 2x2 grid of product cards."""
 
     def render_promo(self, promo: Promo, name: str) -> Path:
         self.output_dir.mkdir(parents=True, exist_ok=True)
-        canvas = Image.new("RGB", CANVAS, self.NAVY)
+        W, H = POST_CANVAS
+        canvas = Image.new("RGB", POST_CANVAS, NAVY)
         draw = ImageDraw.Draw(canvas)
-        for y in range(CANVAS[1]):
-            r = y / CANVAS[1]
-            draw.line((0, y, CANVAS[0], y), fill=(7 + int(8 * r), 20 + int(18 * r), 38 + int(26 * r)))
+        for y in range(H):
+            r = y / H
+            draw.line((0, y, W, y), fill=(8 + int(10 * r), 24 + int(22 * r), 48 + int(40 * r)))
 
-        draw.rounded_rectangle((42, 30, 1038, 118), radius=26, fill=self.PANEL)
         store = store_name(promo.store).upper()
-        draw.text((540, 74), store, anchor="mm", font=self._fit_font(draw, store, 900, 44, 28), fill=self.ORANGE)
-        title = f"PROMO DEL DÍA: {promo.brand.upper()}"
-        draw.text((540, 160), title, anchor="mm", font=self._fit_font(draw, title, 900, 50, 30), fill=self.WHITE)
-        sub = f"¡Hasta -{promo.max_pct}% de descuento!"
-        draw.text((540, 214), sub, anchor="mm", font=self._font(36, bold=True), fill=self.ORANGE)
-        self._paste_emoji(canvas, (60, 136), "🔥", 48)
-        self._paste_emoji(canvas, (972, 136), "🔥", 48)
+        chip_font = self._fit_font(draw, store, 420, 40, 26)
+        chip_w = int(draw.textlength(store, font=chip_font)) + 64
+        draw.rounded_rectangle((48, 44, 48 + chip_w, 120), radius=38, fill=WHITE)
+        draw.text((48 + chip_w // 2, 82), store, anchor="mm", font=chip_font, fill=NAVY)
+        self._paste_emoji(canvas, (48 + chip_w + 22, 60), "🔥", 44)
+        draw.text((48 + chip_w + 76, 82), "PROMO DEL DÍA", anchor="lm", font=self._font(34, weight="Black"), fill=YELLOW)
+        brand = promo.brand.upper()
+        draw.text((52, 200), brand, anchor="lm", font=self._fit_font(draw, brand, 680, 116, 56, weight="Black"), fill=WHITE)
+        draw.text((56, 288), "Lo mejor de la marca hoy", anchor="lm", font=self._font(28, weight="SemiBold"), fill=MUTED)
+        self._burst(draw, (W - 170, 210), 122, f"-{promo.max_pct}%")
+        draw.text((W - 170, 70), "HASTA", anchor="mm", font=self._font(30, weight="Black"), fill=YELLOW)
 
-        slots = [(50, 255), (550, 255), (50, 575), (550, 575)]
+        cw, ch, gap, top = 480, 424, 24, 330
+        slots = [(48, top), (48 + cw + gap, top), (48, top + ch + gap), (48 + cw + gap, top + ch + gap)]
         if len(promo.deals) == 3:
-            slots[2] = (300, 575)
+            slots[2] = ((W - cw) // 2, top + ch + gap)
         for (x, y), deal in zip(slots, promo.deals):
-            self._card(canvas, draw, deal, x, y)
+            self._card(canvas, draw, deal, x, y, cw, ch)
 
-        draw.rounded_rectangle((42, 910, 1038, 1040), radius=28, fill=self.PANEL)
-        if self._logo_footer:
-            lw, lh = self._logo_footer.size
-            canvas.paste(self._logo_footer, (72, 975 - lh // 2), self._logo_footer)
-        draw.text((1008, 950), "OJO AL PRECIO", anchor="rm", font=self._font(28, bold=True), fill=self.WHITE)
-        draw.text((1008, 995), "Síguenos y activa las notificaciones", anchor="rm", font=self._font(24, bold=True), fill=self.MUTED)
-
+        self._footer(canvas, draw, W, H)
         output = self.output_dir / f"{name}.png"
         canvas.save(output, format="PNG", optimize=True)
         return output
 
-    def _card(self, canvas: Image.Image, draw: ImageDraw.ImageDraw, deal: DealObservation, x: int, y: int) -> None:
-        w, h = 480, 300
-        draw.rounded_rectangle((x, y, x + w, y + h), radius=26, fill=self.WHITE)
+    def _card(self, canvas: Image.Image, draw: ImageDraw.ImageDraw, deal: DealObservation, x: int, y: int, w: int, h: int) -> None:
+        draw.rounded_rectangle((x, y, x + w, y + h), radius=32, fill=WHITE)
         photo = self._load_product_image(self._download(deal.image_url))
         if photo is not None:
-            photo = ImageOps.contain(photo, (190, 190), Image.Resampling.LANCZOS)
-            canvas.paste(photo, (x + 20 + (190 - photo.width) // 2, y + 55 + (190 - photo.height) // 2), photo)
-        font, lines = self._fit_lines(draw, deal.title, 240, max_lines=3, start=22, minimum=16)
-        ty = y + 28
+            photo = ImageOps.contain(photo, (w - 60, 196), Image.Resampling.LANCZOS)
+            canvas.paste(photo, (x + (w - photo.width) // 2, y + 26 + (196 - photo.height) // 2), photo)
+        pct = f"-{deal.discount_pct}%"
+        pfont = self._font(30, weight="Black")
+        pw = int(draw.textlength(pct, font=pfont)) + 34
+        draw.rounded_rectangle((x + 16, y + 16, x + 16 + pw, y + 64), radius=24, fill=RED)
+        draw.text((x + 16 + pw // 2, y + 40), pct, anchor="mm", font=pfont, fill=WHITE)
+        font, lines = self._fit_lines(draw, display_title(deal.title), w - 48, max_lines=2, start=26, minimum=20)
+        ty = y + 236
         for line in lines:
-            draw.text((x + 222, ty), line, font=font, fill=self.NAVY)
-            ty += font.size + 4
-        before = money(deal.original_price_minor, "COP")
-        bfont = self._fit_font(draw, before, 240, 22, 16)
-        draw.text((x + 222, y + 190), before, font=bfont, fill="#64748B")
-        bw = draw.textlength(before, font=bfont)
-        draw.line((x + 222, y + 202, x + 222 + bw, y + 202), fill="#FF6B6B", width=3)
-        now = money(deal.price_minor, "COP")
-        draw.text((x + 222, y + 222), now, font=self._fit_font(draw, now, 245, 34, 22), fill="#E08E00")
-        badge = f"-{deal.discount_pct}%"
-        bfont2 = self._font(28, bold=True)
-        bwid = int(draw.textlength(badge, font=bfont2)) + 30
-        draw.rounded_rectangle((x + 12, y + 12, x + 12 + bwid, y + 56), radius=20, fill=self.ORANGE)
-        draw.text((x + 12 + bwid // 2, y + 34), badge, anchor="mm", font=bfont2, fill=self.NAVY)
+            draw.text((x + 24, ty), line, font=font, fill=NAVY)
+            ty += font.size + 6
+        before = money(deal.original_price_minor, "COP").replace(" COP", "")
+        bfont = self._font(26, weight="SemiBold")
+        draw.text((x + 24, y + h - 104), "Antes " + before, font=bfont, fill="#5B6B80")
+        bx = x + 24 + draw.textlength("Antes ", font=bfont)
+        draw.line((bx, y + h - 89, bx + draw.textlength(before, font=bfont), y + h - 89), fill=RED, width=3)
+        now = money(deal.price_minor, "COP").replace(" COP", "")
+        draw.text((x + 22, y + h - 68), now, font=self._fit_font(draw, now, w - 48, 52, 30, weight="Black"), fill=NAVY)

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from decimal import Decimal, ROUND_DOWN, ROUND_HALF_UP
@@ -47,6 +49,28 @@ def rating_text(deal: "DealObservation") -> str | None:
 
 def store_name(source: str) -> str:
     return STORE_NAMES.get(source, source.replace("_", " ").title())
+
+
+_COLORS = {
+    "negro", "negra", "blanco", "blanca", "gris", "plata", "plateado", "plateada", "azul", "rojo", "roja", "rosado",
+    "rosada", "rosa", "verde", "morado", "morada", "lila", "beige", "dorado", "dorada", "grafito", "titanio", "crema",
+    "black", "white", "silver", "gray", "grey", "blue", "pink",
+}
+_MODEL_CODE = re.compile(r"^(?=(?:.*\d){2})(?=(?:.*[A-Za-z]){2})[A-Za-z0-9][A-Za-z0-9/._-]{5,}$")
+_METRIC = re.compile(r"\s+\d+(?:[.,]\d+)?\s*cm\b", re.IGNORECASE)
+
+
+def display_title(title: str) -> str:
+    """Shorter product name for images: no model codes, metric duplicates or trailing color.
+    The caption keeps the full title (it is what people search for)."""
+    text = re.sub(r'"\s*pulgadas\b', '"', title, flags=re.IGNORECASE)
+    if '"' in text:
+        text = _METRIC.sub("", text)
+    words = [w for w in text.split() if not _MODEL_CODE.match(w.strip("(),"))]
+    while len(words) > 3 and words[-1].lower().strip(".,") in _COLORS:
+        words.pop()
+    clean = " ".join(words).strip(" ,-+/")
+    return clean if len(clean) >= 8 else title
 
 
 def utc_now() -> datetime:

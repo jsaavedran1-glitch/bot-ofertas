@@ -155,6 +155,56 @@ class InsightTests(unittest.TestCase):
             self.assertEqual(frame.size, (1080, 1920))
 
 
+class DesignTests(unittest.TestCase):
+    def test_image_title_drops_model_codes_metric_duplicates_and_color(self):
+        from app.models import display_title
+        self.assertEqual(display_title('TV SAMSUNG 55" Pulgadas 139,7 cm 55U8000H 4K-UHD LED Smart TV Negro'),
+                         'TV SAMSUNG 55" 4K-UHD LED Smart TV')
+        self.assertEqual(display_title("Consola PS5 Slim 1TB"), "Consola PS5 Slim 1TB")
+        self.assertEqual(display_title("Parlante JBL PARTYBOX 130 200W Negro"), "Parlante JBL PARTYBOX 130 200W")
+
+    def test_product_photo_margin_is_trimmed_and_backdrop_whitened(self):
+        from app.image_renderer import trim_product
+        photo = Image.new("RGB", (750, 750), (253, 253, 253))
+        photo.paste((20, 20, 20), (300, 200, 450, 550))
+        trimmed = trim_product(photo)
+        self.assertLess(trimmed.width, 200)
+        self.assertLess(trimmed.height, 400)
+        self.assertEqual(trimmed.getpixel((0, 0))[:3], (255, 255, 255))
+        full_bleed = Image.new("RGB", (400, 400), (150, 150, 150))
+        self.assertEqual(trim_product(full_bleed).size, (400, 400))
+
+    def test_long_unbreakable_title_is_wrapped_with_ellipsis(self):
+        from PIL import ImageDraw
+        renderer = OfferImageRenderer(Path("."))
+        draw = ImageDraw.Draw(Image.new("RGB", (10, 10)))
+        font, lines = renderer._fit_lines(draw, "TV SAMSUNG 65 pulgadas Mini LED Smart TV con IA y barra de sonido incluida",
+                                          240, max_lines=2, start=22, minimum=20)
+        self.assertEqual(len(lines), 2)
+        self.assertGreater(len(lines[0].split()), 1)
+        self.assertTrue(lines[-1].endswith("…"))
+        self.assertTrue(all(draw.textlength(line, font=font) <= 240 for line in lines))
+
+    def test_top_cover_is_4_5_and_slides_take_a_rank_tag(self):
+        buffer = BytesIO()
+        Image.new("RGB", (300, 300), "red").save(buffer, format="PNG")
+
+        class Offline(OfferImageRenderer):
+            def _download(self, url):
+                return buffer.getvalue()
+
+        deals = [DealObservation(source="alkosto", external_id=f"T{i}", title=f"Producto {i}", price_minor=100_000,
+                                 original_price_minor=200_000, evidence=DiscountEvidence.OFFICIAL_ORIGINAL,
+                                 currency="COP", url=f"https://example.com/t{i}", image_url="https://img/x")
+                 for i in range(5)]
+        with tempfile.TemporaryDirectory() as directory:
+            renderer = Offline(Path(directory))
+            with Image.open(renderer.render_top_cover(deals, "cover")) as cover:
+                self.assertEqual(cover.size, (1080, 1350))
+            with Image.open(renderer.render(deals[0], "slide", tag="TOP 1 DE HOY")) as slide:
+                self.assertEqual(slide.size, (1080, 1350))
+
+
 class PromoStoryTests(unittest.TestCase):
     def test_square_image_becomes_vertical_story(self):
         from app.reel_renderer import ReelRenderer

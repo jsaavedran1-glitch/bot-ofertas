@@ -69,7 +69,7 @@ class PromoTests(unittest.TestCase):
         self.assertIn("primer comentario", in_comment)
         self.assertEqual(promo_links(promo).count("https://www.alkosto.com/p/"), len(promo.deals))
 
-    def test_render_is_1080_square_png(self):
+    def test_render_is_vertical_4_5_png(self):
         buffer = BytesIO()
         Image.new("RGB", (200, 200), "gray").save(buffer, format="PNG")
 
@@ -81,7 +81,7 @@ class PromoTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             path = Offline(Path(directory)).render_promo(promo, "p")
             with Image.open(path) as img:
-                self.assertEqual(img.size, (1080, 1080))
+                self.assertEqual(img.size, (1080, 1350))
 
     def test_database_tracks_daily_and_recent_promos(self):
         with tempfile.TemporaryDirectory() as directory:
