@@ -289,6 +289,82 @@ class OfferPipeline:
                 print(f"Advertencia Telegram top 5: {exc}", file=sys.stderr)
         return post_id, items
 
+    def history_options(self, candidates: list[Candidate]) -> list[tuple[Candidate, object, object]]:
+        """(candidate, history, verdict) for fresh COP deals whose own price history says something, best first:
+        the strongest real discounts and the most inflated "antes" prices."""
+        from app.history import build_history, judge
+
+        options = []
+        max_age = timedelta(hours=self.settings.candidate_max_age_hours)
+        for c in candidates:
+            if c.deal.currency != "COP" or utc_now() - c.deal.observed_at > max_age:
+                continue
+            history = build_history(self.database.price_series(c.deal), c.deal)
+            verdict = judge(c.deal, history) if history else None
+            if verdict is None:
+                continue
+            if verdict.kind == "inflado":
+                strength = 1 - history.high / c.deal.original_price_minor
+            else:
+                strength = (1 - c.deal.price_minor / history.usual) * (1.0 if verdict.kind == "real" else 0.6)
+            options.append((strength, c, history, verdict))
+        options.sort(key=lambda o: o[0], reverse=True)
+        return [(c, h, v) for _, c, h, v in options]
+
+    def publish_history(self, candidates: list[Candidate], publisher: FacebookPublisher | None = None,
+                        prefer: str | None = None, dry_run: bool = False) -> tuple[str, Candidate] | None:
+        """One "¿Descuento real?" post: the deal's 30-day price line from our own scans and the verdict.
+        `prefer` ("real"/"inflado") alternates the angle. None when no deal has enough history to say something."""
+        from app.history import HistoryRenderer, history_caption
+
+        options = self.history_options(candidates)
+        if prefer:
+            options.sort(key=lambda o: o[2].kind != prefer)  # stable: keeps strength order inside each group
+        renderer = getattr(self, "history_renderer", None) or HistoryRenderer(
+            self.settings.generated_dir, session=getattr(self.renderer, "session", None))
+        for c, history, verdict in options[:5]:
+            fresh = self._revalidate(c)
+            if not (fresh and fresh.available and fresh.price_minor == c.deal.price_minor and fresh.url == c.deal.url):
+                continue
+            if dry_run:
+                image = renderer.render_history(c.deal, history, verdict, f"historial_{c.id}")
+                print(f"Vista previa historial: {image.resolve()}\n"
+                      f"{history_caption(c.deal, history, verdict, self.settings.link_in_comment)}\n")
+                return "dry-run", c
+            if not self.database.reserve_for_publish(c.id, self.settings.max_posts_per_day):
+                continue
+            c = self._with_insights(c)
+            try:
+                publisher = publisher or FacebookPublisher(
+                    self.settings.fb_page_id, self.settings.fb_page_token, self.settings.meta_graph_api_version)
+                image = renderer.render_history(c.deal, history, verdict, f"historial_{c.id}")
+                caption = history_caption(c.deal, history, verdict, self.settings.link_in_comment,
+                                          self.settings.affiliate_disclosure)
+                ensure_recommendable(caption, names_of([c.deal]))
+                post_id = publisher.publish_photo(image, caption)
+            except FacebookPublishError as exc:
+                self.database.record_publish_error(c.id, str(exc), exc.ambiguous)
+                raise
+            except (MissingProductImage, ValueError) as exc:
+                self.database.record_publish_error(c.id, str(exc), False)
+                print(f"Historial {c.id} descartado: {exc}", file=sys.stderr)
+                continue
+            self.database.record_publication(c.id, post_id, "facebook_historial")
+            if self.settings.link_in_comment:
+                try:
+                    publisher.comment(post_id, f"👉 Aquí la oferta: {c.deal.url}")
+                except FacebookPublishError as exc:
+                    print(f"Advertencia historial: {exc}", file=sys.stderr)
+            if self.story_due():
+                try:
+                    story = self.reel_renderer.render_story_from_image(
+                        image, f"story_{image.stem}", "¿DESCUENTO REAL?", "Mira el historial en nuestra página")
+                    publisher.publish_story(story)
+                except (FacebookPublishError, OSError) as exc:
+                    print(f"Advertencia historia historial: {exc}", file=sys.stderr)
+            return post_id, c
+        return None
+
     def _load_media(self) -> None:
         """Reels audio licensed only for Meta products lives in the database, never in the public repo."""
         if getattr(self, "_media_loaded", False):

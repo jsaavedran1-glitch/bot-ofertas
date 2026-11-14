@@ -342,6 +342,19 @@ def publish_slot(settings: Settings, database: Database, pipeline: OfferPipeline
             published += publish_content(settings, database, pipeline)
         except (FacebookPublishError, OSError, ValueError) as exc:
             print(f"Falló el dato/noticia: {exc}", file=sys.stderr)
+    if published < due and now.hour in settings.history_hours and not database.history_published_this_hour():
+        wait_turn()
+        try:
+            turn = sorted(settings.history_hours).index(now.hour) + now.timetuple().tm_yday
+            result = pipeline.publish_history(database.list_candidates(status="approved", limit=80),
+                                              prefer=("real", "inflado")[turn % 2])
+            if result:
+                print(f"Historial de precio publicado ({result[1].deal.title}): {result[0]}")
+                published += 1
+            else:
+                print("Historial: ninguna oferta con historial suficiente; se publica un post normal.")
+        except (FacebookPublishError, OSError, ValueError) as exc:
+            print(f"Falló el historial de precio: {exc}", file=sys.stderr)
     tried: set[str] = set()
     reel_failed = False
     while published < due and len(tried) < due * 4:
@@ -489,9 +502,43 @@ def parser() -> argparse.ArgumentParser:
     preview.add_argument("--limit", type=int, default=20)
     export = commands.add_parser("exportar", help="Exportar métricas y datos de todas las publicaciones (solo lectura)")
     export.add_argument("--days", type=int, default=30)
+    history = commands.add_parser("historial", help="Publicar un '¿Descuento real?' con el historial de precio")
+    history.add_argument("--dry-run", action="store_true", help="Solo muestra qué hay y genera la imagen")
     coupons = commands.add_parser("cupones", help="Publicar los cupones de assets/content/cupones.json")
     coupons.add_argument("--dry-run", action="store_true", help="Solo genera la imagen y muestra el texto")
     return root
+
+
+def history_command(settings: Settings, database: Database, pipeline: OfferPipeline, dry_run: bool) -> int:
+    """How many approved deals have enough history and what it says; publishes the best one unless dry_run.
+    The preview image is printed as an IMG line (small JPEG, base64) so it can be checked from the logs."""
+    import base64
+    from collections import Counter
+    from io import BytesIO
+    from PIL import Image
+
+    candidates = database.list_candidates(status="approved", limit=200)
+    options = pipeline.history_options(candidates)
+    kinds = Counter(v.kind for _, _, v in options)
+    print(f"Historial: {len(candidates)} ofertas aprobadas, {len(options)} con algo que decir "
+          f"({kinds.get('real', 0)} reales, {kinds.get('bueno', 0)} buen precio, {kinds.get('inflado', 0)} infladas).")
+    for c, h, v in options[:10]:
+        print(f"  {v.kind:8} {store_name(c.deal.source):14} {len(h.points) - 1:>2} días · {c.deal.title[:60]}")
+    result = pipeline.publish_history(candidates, dry_run=dry_run)
+    if result is None:
+        print("Ninguna oferta con historial suficiente para publicar.")
+        return 0
+    if dry_run:
+        image = settings.generated_dir / f"historial_{result[1].id}.png"
+        with Image.open(image) as img:
+            small = img.convert("RGB")
+            small.thumbnail((540, 675))
+            buffer = BytesIO()
+            small.save(buffer, format="JPEG", quality=80)
+        print("IMG\t" + base64.b64encode(buffer.getvalue()).decode("ascii"))
+    else:
+        print(f"Historial de precio publicado: {result[0]}")
+    return 0
 
 
 def publish_coupons(settings: Settings, database: Database, key: str | None = None, dry_run: bool = False,
@@ -606,6 +653,8 @@ def main() -> int:
             return ai_preview(settings, database, pipeline, args.limit)
         elif args.command == "cupones":
             publish_coupons(settings, database, dry_run=args.dry_run)
+        elif args.command == "historial":
+            return history_command(settings, database, pipeline, args.dry_run)
         elif args.command == "exportar":
             from app.export import export_stats
             export_stats(settings, database, days=args.days)

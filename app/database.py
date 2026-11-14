@@ -277,6 +277,30 @@ class Database:
             and int(row["hi"]) > deal.price_minor
         )
 
+    def price_series(self, deal: DealObservation, days: int = 30) -> list[tuple[datetime, int]]:
+        """(observed_at, price) of every scan of this item in its currency over the last `days` days."""
+        since = (utc_now() - timedelta(days=days + 1)).isoformat()
+        sql = self._sql(
+            "SELECT observed_at, price_minor FROM price_observations"
+            " WHERE source=? AND external_id=? AND currency=? AND observed_at>=? ORDER BY observed_at"
+        )
+        with self._connection() as conn:
+            rows = conn.execute(sql, (deal.source, deal.external_id, deal.currency, since)).fetchall()
+        out = []
+        for row in rows:
+            when = row["observed_at"]
+            if isinstance(when, str):
+                when = datetime.fromisoformat(when.replace("Z", "+00:00"))
+            out.append((when, int(row["price_minor"])))
+        return out
+
+    def history_published_this_hour(self) -> bool:
+        local = utc_now().astimezone(ZoneInfo("America/Bogota"))
+        start = local.replace(minute=0, second=0, microsecond=0).astimezone(timezone.utc).isoformat()
+        sql = self._sql("SELECT 1 FROM publications WHERE platform='facebook_historial' AND published_at>=? LIMIT 1")
+        with self._connection() as conn:
+            return conn.execute(sql, (start,)).fetchone() is not None
+
     def upsert_product(self, deal: DealObservation) -> None:
         now = utc_now().isoformat()
         sql = self._sql(
@@ -451,7 +475,7 @@ class Database:
             "SELECT external_post_id AS post_id, kind, 'contenido' AS source, published_at AS at"
             " FROM content_publications WHERE published_at>=?",
         )
-        kinds = {"facebook": "oferta", "facebook_reel": "reel", "facebook_top": "top5"}
+        kinds = {"facebook": "oferta", "facebook_reel": "reel", "facebook_top": "top5", "facebook_historial": "historial"}
         posts: dict[str, tuple[str, str, str, datetime]] = {}
         with self._connection() as conn:
             for sql in queries:

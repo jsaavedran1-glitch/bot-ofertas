@@ -17,11 +17,13 @@ BOGOTA = ZoneInfo("America/Bogota")
 FIELDS = ("created_time,attachments{target{id}},reactions.summary(total_count).limit(0),"
           "comments.limit(50){from{id}},shares")
 KIND_NAMES = {"oferta": "Oferta (foto)", "reel": "Reel", "promo": "Promo del día", "top5": "Top 5",
-              "dato": "Dato útil", "noticia": "Noticia", "evento": "Cuenta regresiva", "cupones": "Cupones"}
+              "dato": "Dato útil", "noticia": "Noticia", "evento": "Cuenta regresiva", "cupones": "Cupones",
+              "historial": "¿Descuento real?"}
 PLURALS = {"oferta": ("oferta con foto", "ofertas con foto"), "reel": ("reel", "reels"),
            "promo": ("promo del día", "promos del día"), "top5": ("Top 5", "Top 5"), "dato": ("dato útil", "datos útiles"),
            "noticia": ("noticia", "noticias"), "evento": ("cuenta regresiva", "cuentas regresivas"),
-           "cupones": ("publicación de cupones", "publicaciones de cupones")}
+           "cupones": ("publicación de cupones", "publicaciones de cupones"),
+           "historial": ("historial de precio", "historiales de precio")}
 BANDS = ((0, 9, "antes de 9 h"), (9, 12, "9–12 h"), (12, 17, "12–17 h"), (17, 20, "17–20 h"), (20, 24, "20–24 h"))
 
 
@@ -122,7 +124,7 @@ def weekly_report(posts: list[PostStats], start: datetime, end: datetime,
     by_band: dict[str, list[PostStats]] = defaultdict(list)
     for p in posts:
         by_kind[KIND_NAMES.get(p.kind, p.kind)].append(p)
-        if p.kind in {"oferta", "reel", "promo"}:
+        if p.kind in {"oferta", "reel", "promo", "historial"}:
             by_store[names.get(p.source, p.source.capitalize())].append(p)
         hour = p.published_at.astimezone(BOGOTA).hour
         by_band[next(label for lo, hi, label in BANDS if lo <= hour < hi)].append(p)
@@ -149,7 +151,7 @@ def _groups(posts: list[PostStats], names: dict[str, str]):
     by_band: dict[str, list[PostStats]] = defaultdict(list)
     for p in posts:
         by_kind[KIND_NAMES.get(p.kind, p.kind)].append(p)
-        if p.kind in {"oferta", "reel", "promo"}:
+        if p.kind in {"oferta", "reel", "promo", "historial"}:
             by_store[names.get(p.source, p.source.capitalize())].append(p)
         hour = p.published_at.astimezone(BOGOTA).hour
         by_band[next(label for lo, hi, label in BANDS if lo <= hour < hi)].append(p)

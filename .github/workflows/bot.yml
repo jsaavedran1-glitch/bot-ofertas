@@ -20,6 +20,7 @@ on:
           - cupones
           - exportar
           - colores
+          - historial
 
 permissions:
   contents: read
@@ -63,6 +64,10 @@ jobs:
       POSTS_PER_HOUR: "8:3,9:5,10:4,11:4,12:5,13:4,14:4,15:4,16:4,17:5,18:5,19:5,20:4,21:4,22:3"
       # Dato útil o noticia (alternados) como primera publicación de estas horas; allá fueron lo más comentado
       CONTENT_HOURS: "9,12,17"
+      # "¿Descuento real?": historial de 30 días de una oferta con nuestros propios datos y su veredicto (real,
+      # buen precio o "antes" inflado). Reemplaza una oferta de esa hora; si ninguna tiene historial suficiente,
+      # sale una oferta normal. Contenido original, el que Meta recomienda.
+      HISTORY_HOURS: "11,16,20"
       # Tope de seguridad diario (la suma de arriba es 63; con EVENT_BOOST, ~82)
       MAX_POSTS_PER_DAY: "90"
       # Black Friday (27-29 nov) y Cyber Monday (30 nov): 30 % más publicaciones por hora, etiqueta y hashtags
@@ -124,6 +129,7 @@ jobs:
             informe)   python main.py informe --collect --save --diario ;;
             cupones)   python main.py cupones ;;
             exportar)  python main.py exportar --days 30 ;;
+            historial) python main.py historial --dry-run ;;
             colores)   python -c "from app.store_colors import store_color as c; [print('COLOR', s, c(s, u)) for s, u in (('alkosto','https://www.alkosto.com/x'),('ktronix','https://www.ktronix.com/x'),('exito','https://www.exito.com/x'),('falabella','https://www.falabella.com.co/x'),('nike','https://www.nike.com.co/x'),('tennis','https://www.tennis.com.co/x'),('amazon','https://www.amazon.com/x'),('mercadolibre','https://www.mercadolibre.com.co/x'))]" ;;
             *) echo "Modo no válido: $REQUESTED_MODE"; exit 2 ;;
           esac

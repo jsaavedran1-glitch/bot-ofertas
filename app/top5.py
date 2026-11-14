@@ -53,7 +53,7 @@ def top_copy(items: list[Candidate], rate: Decimal | None, link_in_comment: bool
     lines += [
         f"Verificado el {local:%d/%m/%Y a las %H:%M}. Precios sujetos a cambios.",
         "",
-        "¿Cuál te llevas? Responde con el número 👇",
+        "¿Cuál de estas te sirve más? 👇",
         "",
         " ".join(f"#OjoAlPrecio #ofertas #descuentos #Colombia {trend_tags('top' + local.date().isoformat())}".split()),
     ]
