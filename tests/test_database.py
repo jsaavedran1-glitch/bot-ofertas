@@ -117,6 +117,38 @@ class PublishQueueTests(unittest.TestCase):
             db.record_publication(cid, "post_0")
             self.assertEqual(order(publish_queues(db)), ["exito"])
 
+    def test_amazon_stops_after_its_daily_cap(self):
+        from dataclasses import replace
+        from main import capped_sources, publish_queues
+        from tests.helpers import settings_for
+        with tempfile.TemporaryDirectory() as directory:
+            db = Database(f"sqlite:///{directory}/cap.db")
+            db.initialize()
+            settings = replace(settings_for(directory), amazon_max_per_day=2)
+            ids = []
+            for i, (source, title) in enumerate((("amazon", "Audífonos JBL Tune"), ("amazon", "Teclado Logitech MX"),
+                                                 ("amazon", "Monitor LG UltraGear"), ("exito", "Freidora Oster"))):
+                deal = DealObservation(
+                    source=source, external_id=f"cap{i}", title=title, price_minor=5000, original_price_minor=10000,
+                    evidence=DiscountEvidence.OFFICIAL_ORIGINAL, currency="USD", url=f"https://example.com/{i}",
+                    image_url="https://example.com/i.png",
+                )
+                db.create_candidate(deal, 50)
+                db.decide(deal.candidate_id, "approved")
+                ids.append(deal.candidate_id)
+
+            def sources():
+                skip = capped_sources(settings, db)
+                return {db.get_candidate(q[0]).deal.source for q in publish_queues(db, skip=skip)}
+
+            self.assertEqual(sources(), {"amazon", "exito"})
+            for platform, cid in (("facebook", ids[0]), ("facebook_reel", ids[1])):
+                db.reserve_for_publish(cid, 90)
+                db.record_publication(cid, f"post_{cid}", platform)
+            self.assertEqual(db.posts_today_from("amazon"), 2)
+            # Third Amazon deal of the day: left out, the other stores keep their turn.
+            self.assertEqual(sources(), {"exito"})
+
 
 class VariantTests(unittest.TestCase):
     def test_colours_and_stores_collapse_but_sizes_do_not(self):
