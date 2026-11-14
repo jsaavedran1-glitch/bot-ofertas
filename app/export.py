@@ -79,18 +79,24 @@ def _keys(database, table: str, column: str, since: datetime) -> dict[str, str]:
 
 
 def _ops(database, since: datetime) -> dict:
+    """Aggregated (a raw list of thousands of candidates would not fit on one log line)."""
     cutoff = since.astimezone(timezone.utc).isoformat()
+    day = "substr(CAST(created_at AS TEXT), 1, 10)"
+    queries = {
+        "errors_by_day_kind": f"SELECT {day} AS day, error_kind, COUNT(*) AS n FROM publication_errors"
+                              " WHERE created_at>=? GROUP BY 1, 2 ORDER BY 1",
+        "error_messages": "SELECT error_kind, substr(message, 1, 120) AS message, COUNT(*) AS n FROM publication_errors"
+                          " WHERE created_at>=? GROUP BY 1, 2 ORDER BY 3 DESC LIMIT 25",
+        "candidates_by_day_source": f"SELECT {day} AS day, source, COUNT(*) AS n, ROUND(AVG(score)) AS avg_score"
+                                    " FROM candidates WHERE created_at>=? GROUP BY 1, 2 ORDER BY 1",
+        "candidates_by_status_source": "SELECT status, source, COUNT(*) AS n FROM candidates WHERE created_at>=?"
+                                       " GROUP BY 1, 2 ORDER BY 1",
+    }
+    out = {}
     with database._connection() as conn:
-        errors = [dict(r) for r in conn.execute(database._sql(
-            "SELECT e.created_at, e.error_kind, e.message, c.source FROM publication_errors e"
-            " LEFT JOIN candidates c ON c.id = e.candidate_id WHERE e.created_at>=? ORDER BY e.created_at"), (cutoff,)).fetchall()]
-        created = [dict(r) for r in conn.execute(database._sql(
-            "SELECT source, created_at, status, score FROM candidates WHERE created_at>=?"), (cutoff,)).fetchall()]
-        statuses = [dict(r) for r in conn.execute(database._sql(
-            "SELECT status, source, COUNT(*) AS n FROM candidates GROUP BY status, source")).fetchall()]
-    for row in errors + created:
-        row["created_at"] = str(row["created_at"])
-    return {"errors": errors, "candidates_created": created, "candidate_status": statuses}
+        for name, sql in queries.items():
+            out[name] = [dict(r) for r in conn.execute(database._sql(sql), (cutoff,)).fetchall()]
+    return out
 
 
 def export_stats(settings, database, days: int = 30, path: Path = Path("generated") / "estadisticas.json",
