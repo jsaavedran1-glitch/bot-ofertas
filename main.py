@@ -482,6 +482,8 @@ def parser() -> argparse.ArgumentParser:
     report.add_argument("--ayer", action="store_true", help="Con --diario: el día de ayer completo")
     preview = commands.add_parser("ai-preview", help="Ver los textos de Claude para ofertas reales, sin publicar")
     preview.add_argument("--limit", type=int, default=20)
+    export = commands.add_parser("exportar", help="Exportar métricas y datos de todas las publicaciones (solo lectura)")
+    export.add_argument("--days", type=int, default=30)
     coupons = commands.add_parser("cupones", help="Publicar los cupones de assets/content/cupones.json")
     coupons.add_argument("--dry-run", action="store_true", help="Solo genera la imagen y muestra el texto")
     return root
@@ -598,6 +600,9 @@ def main() -> int:
             return ai_preview(settings, database, pipeline, args.limit)
         elif args.command == "cupones":
             publish_coupons(settings, database, dry_run=args.dry_run)
+        elif args.command == "exportar":
+            from app.export import export_stats
+            export_stats(settings, database, days=args.days)
         return 0
     except (ValueError, FacebookPublishError) as exc:
         print(f"Error: {exc}", file=sys.stderr)

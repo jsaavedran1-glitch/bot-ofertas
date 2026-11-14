@@ -18,6 +18,7 @@ on:
           - ai-preview
           - informe
           - cupones
+          - exportar
 
 permissions:
   contents: read
@@ -119,8 +120,17 @@ jobs:
             ai-preview) python main.py ai-preview --limit 12 ;;
             informe)   python main.py informe --collect --save --diario ;;
             cupones)   python main.py cupones ;;
+            exportar)  python main.py exportar --days 30 ;;
             *) echo "Modo no válido: $REQUESTED_MODE"; exit 2 ;;
           esac
+
+      - name: Guardar exportación de estadísticas
+        if: success() && hashFiles('generated/estadisticas.json') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: estadisticas
+          path: generated/estadisticas.json
+          retention-days: 2
 
       - name: Publicar informe diario
         if: success() && hashFiles('generated/informe_diario.md') != ''
