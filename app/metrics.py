@@ -1,8 +1,13 @@
-"""How our own posts do: reactions, comments and shares per post, and a weekly report by type, store and hour.
+"""How our own posts do: reactions, comments and shares per post, views and accounts reached when the token can
+read insights, and the daily and weekly reports by type, store and hour.
 
 Counts come from the page's /posts edge (one request per 100 posts; the `ids` parameter is gone in Graph
 v26). Reels appear there as a post whose attachment points to the reel's video id, which is the id we
 store. Comments written by the page itself (the link we leave under every post) are not counted.
+
+Views (post_media_view) and accounts (post_total_media_view_unique) come from the same edge with
+`insights.metric(...)`; reel plays from /{video-id}/video_insights. Both need the read_insights permission on
+the Page token; without it Meta answers with empty data, and the report says so instead of showing zeros.
 """
 from __future__ import annotations
 
@@ -40,10 +45,81 @@ class PostStats:
     reactions: int = 0
     comments: int = 0
     shares: int = 0
+    views: int | None = None     # times shown (post_media_view); None = Meta gave nothing
+    viewers: int | None = None   # distinct accounts (post_total_media_view_unique)
+    plays: int | None = None     # reels only: plays (blue_reels_play_count)
 
     @property
     def interactions(self) -> int:
         return self.reactions + self.comments + self.shares
+
+
+VIEW_METRICS = "post_media_view,post_total_media_view_unique"
+REEL_METRICS = "blue_reels_play_count,post_impressions_unique"
+NO_VIEWS = ("Meta no entrega vistas ni cuentas con el token actual (le falta el permiso read_insights o la página "
+            "no tiene acceso a estadísticas). Comprueba el token con el modo «permisos».")
+
+
+def _insight_values(payload: dict) -> dict[str, int]:
+    out = {}
+    for item in (payload or {}).get("data", []) or []:
+        values = item.get("values") or []
+        value = values[-1].get("value") if values else None
+        if isinstance(value, (int, float)):
+            out[item.get("name")] = int(value)
+    return out
+
+
+def fetch_views(page_id: str, token: str, version: str, since: datetime, reel_ids=(),
+                session: requests.Session | None = None, max_pages: int = 10) -> tuple[dict[str, dict], str | None]:
+    """({id: {"views", "viewers", "plays"}}, problem). `problem` explains why there are no views; never the token."""
+    session = session or requests.Session()
+    url = f"https://graph.facebook.com/{version}/{page_id}/posts"
+    params: dict | None = {"fields": f"attachments{{target{{id}}}},insights.metric({VIEW_METRICS})", "limit": 100,
+                           "since": int(since.timestamp()), "access_token": token}
+    views: dict[str, dict] = {}
+    seen = 0
+    for _ in range(max_pages):
+        try:
+            payload = session.get(url, params=params, timeout=(5, 30)).json()
+        except (requests.RequestException, ValueError) as exc:
+            return views, f"Meta no respondió al leer vistas ({type(exc).__name__})."
+        if not isinstance(payload, dict) or "error" in payload:
+            code = (payload.get("error") or {}).get("code") if isinstance(payload, dict) else ""
+            return views, f"Meta rechazó la lectura de vistas (código {code}). {NO_VIEWS}"
+        for post in payload.get("data", []):
+            seen += 1
+            values = _insight_values(post.get("insights"))
+            if not values:
+                continue
+            row = {"views": values.get("post_media_view"), "viewers": values.get("post_total_media_view_unique"),
+                   "plays": None}
+            views[post["id"]] = row
+            for attachment in post.get("attachments", {}).get("data", []):
+                target = attachment.get("target", {}).get("id")
+                if target:
+                    views.setdefault(target, dict(row))
+        url = payload.get("paging", {}).get("next")
+        params = None
+        if not url:
+            break
+    for reel in reel_ids:
+        try:
+            payload = session.get(f"https://graph.facebook.com/{version}/{reel}/video_insights",
+                                  params={"metric": REEL_METRICS, "access_token": token}, timeout=(5, 30)).json()
+        except (requests.RequestException, ValueError):
+            continue
+        if not isinstance(payload, dict) or "error" in payload:
+            break  # the same answer for every reel (usually the permission): don't ask again for each one
+        values = _insight_values(payload)
+        if "blue_reels_play_count" in values:
+            row = views.setdefault(reel, {"views": None, "viewers": None, "plays": None})
+            row["plays"] = values["blue_reels_play_count"]
+            if row["viewers"] is None:
+                row["viewers"] = values.get("post_impressions_unique")
+    if seen and not views:
+        return views, NO_VIEWS
+    return views, None
 
 
 def fetch_page_stats(page_id: str, token: str, version: str, since: datetime,
@@ -91,14 +167,54 @@ def _avg(total: int, n: int) -> str:
     return f"{total / n:.1f}".replace(".", ",") if n else "0"
 
 
+def _mean(posts: list[PostStats], field: str) -> float | None:
+    """Average of `field` over the posts Meta gave it for; None when it gave it for none."""
+    values = [getattr(p, field) for p in posts if getattr(p, field) is not None]
+    return sum(values) / len(values) if values else None
+
+
+def _fmt(value: float | None) -> str:
+    return "–" if value is None else f"{value:.1f}".replace(".", ",")
+
+
+def has_views(posts: list[PostStats]) -> bool:
+    return any(p.views is not None for p in posts)
+
+
 def _table(title: str, groups: dict[str, list[PostStats]]) -> list[str]:
-    lines = [f"## {title}", "", "| | Posts | Reacciones | Comentarios | Compartidos | Interacciones por post |",
-             "|---|---:|---:|---:|---:|---:|"]
-    ranked = sorted(groups.items(), key=lambda kv: -sum(p.interactions for p in kv[1]) / max(1, len(kv[1])))
+    """Counts per group. With views, two more columns and the groups ranked by views per post (the signal);
+    without them, by interactions per post."""
+    with_views = has_views([p for posts in groups.values() for p in posts])
+    head, rule = "| | Posts | Reacciones | Comentarios | Compartidos | Interacciones por post |", "|---|---:|---:|---:|---:|---:|"
+    if with_views:
+        head, rule = head + " Vistas por post | Cuentas por post |", rule + "---:|---:|"
+        ranked = sorted(groups.items(), key=lambda kv: -(_mean(kv[1], "views") or 0))
+    else:
+        ranked = sorted(groups.items(), key=lambda kv: -sum(p.interactions for p in kv[1]) / max(1, len(kv[1])))
+    lines = [f"## {title}", "", head, rule]
     for name, posts in ranked:
         r, c, s = (sum(getattr(p, f) for p in posts) for f in ("reactions", "comments", "shares"))
-        lines.append(f"| {name} | {len(posts)} | {r} | {c} | {s} | {_avg(r + c + s, len(posts))} |")
+        row = f"| {name} | {len(posts)} | {r} | {c} | {s} | {_avg(r + c + s, len(posts))} |"
+        if with_views:
+            row += f" {_fmt(_mean(posts, 'views'))} | {_fmt(_mean(posts, 'viewers'))} |"
+        lines.append(row)
     return lines + [""]
+
+
+def _views_line(posts: list[PostStats], week: list[PostStats] | None = None) -> str:
+    line = (f"**{_fmt(_mean(posts, 'views'))} vistas por post** · {_fmt(_mean(posts, 'viewers'))} cuentas por post · "
+            f"{sum(p.views or 0 for p in posts)} vistas en total")
+    if week is not None:
+        line += f" (últimos 7 días: {_fmt(_mean(week, 'views'))} vistas por post)"
+    return line
+
+
+def _reels_line(posts: list[PostStats]) -> str | None:
+    reels = [p for p in posts if p.plays is not None]
+    if not reels:
+        return None
+    total = sum(p.plays for p in reels)
+    return f"- Reels: {total} reproducciones en {_n(len(reels), 'reel')} ({_fmt(total / len(reels))} por reel)"
 
 
 def weekly_report(posts: list[PostStats], start: datetime, end: datetime,
@@ -115,6 +231,12 @@ def weekly_report(posts: list[PostStats], start: datetime, end: datetime,
     if previous:
         lines.append(f"Semana anterior: {_n(len(previous), 'publicación')}, "
                      f"{_avg(sum(p.interactions for p in previous), len(previous))} interacciones por post.")
+    if has_views(posts):
+        lines.append(_views_line(posts) + (f"; semana anterior: {_fmt(_mean(previous, 'views'))} vistas por post"
+                                           if previous and has_views(previous) else "") + ".")
+        reels = _reels_line(posts)
+        if reels:
+            lines.append(reels[2:] + ".")
     lines += ["", "_No cuentan los comentarios del propio bot (el enlace bajo cada post)._", ""]
     if not posts:
         return "\n".join(lines + ["Sin publicaciones en la semana."]) + "\n"
@@ -130,13 +252,19 @@ def weekly_report(posts: list[PostStats], start: datetime, end: datetime,
         by_band[next(label for lo, hi, label in BANDS if lo <= hour < hi)].append(p)
     lines += _table("Por tipo", by_kind) + _table("Por tienda (ofertas, reels y promos)", by_store)
     lines += _table("Por franja horaria (Bogotá)", by_band)
-    lines += ["## Las 5 con más interacciones", ""]
     days = ("lun", "mar", "mié", "jue", "vie", "sáb", "dom")
-    for i, p in enumerate(sorted(posts, key=lambda p: (-p.interactions, -p.reactions))[:5], 1):
+    if has_views(posts):
+        lines += ["## Las 5 con más vistas", ""]
+        best = sorted(posts, key=lambda p: (-(p.views or 0), -p.interactions))[:5]
+    else:
+        lines += ["## Las 5 con más interacciones", ""]
+        best = sorted(posts, key=lambda p: (-p.interactions, -p.reactions))[:5]
+    for i, p in enumerate(best, 1):
         local = p.published_at.astimezone(BOGOTA)
         where = names.get(p.source, p.source) if p.kind in {"oferta", "reel", "promo"} else ""
-        lines.append(f"{i}. **{p.interactions}** ({_n(p.reactions, 'reacción')}, {_n(p.comments, 'comentario')}, "
-                     f"{_n(p.shares, 'compartido')})"
+        seen = f"{p.views or 0} vistas, {p.viewers or 0} cuentas, " if p.views is not None else ""
+        lines.append(f"{i}. **{p.views if p.views is not None else p.interactions}** ({seen}"
+                     f"{_n(p.reactions, 'reacción')}, {_n(p.comments, 'comentario')}, {_n(p.shares, 'compartido')})"
                      f" · {KIND_NAMES.get(p.kind, p.kind)}{' · ' + where if where else ''}"
                      f" · {days[local.weekday()]} {local:%d %H:%M} · https://www.facebook.com/{p.post_id}")
     return "\n".join(lines) + "\n"
@@ -169,12 +297,20 @@ def daily_report(posts: list[PostStats], week: list[PostStats], ops: dict, day, 
              f"**{len(published)} de {ops.get('planned', '?')} publicaciones** · {_n(sum(p.reactions for p in posts), 'reacción')} · "
              f"{_n(sum(p.comments for p in posts), 'comentario')} · {_n(sum(p.shares for p in posts), 'compartido')} · "
              f"**{_avg(total, len(posts))} interacciones por post** (últimos 7 días: "
-             f"{_avg(sum(p.interactions for p in week), len(week))})", "", "## Operación", ""]
+             f"{_avg(sum(p.interactions for p in week), len(week))})"]
+    if has_views(posts):
+        lines.append(_views_line(posts, week))
+    lines += ["", "## Operación", ""]
     kinds = Counter(published)
     lines.append("- Publicadas: " + (", ".join(
         f"{n} {PLURALS.get(k, (k, k))[0 if n == 1 else 1]}" for k, n in kinds.most_common()) or "ninguna"))
     if len(posts) < len(published):
         lines.append(f"- Con métricas: {len(posts)} (las demás se leen en la próxima actualización)")
+    if posts and not has_views(posts):
+        lines.append(f"- Vistas y cuentas: sin datos. {NO_VIEWS}")
+    reels = _reels_line(posts)
+    if reels:
+        lines.append(reels)
     errors = ops.get("errors") or []
     if errors:
         common = Counter(e.split(":")[0][:70] for e in errors).most_common(4)
@@ -193,10 +329,17 @@ def daily_report(posts: list[PostStats], week: list[PostStats], ops: dict, day, 
     if posts:
         by_kind, by_store, by_band = _groups(posts, names)
         lines += _table("Por tipo", by_kind) + _table("Por tienda", by_store) + _table("Por franja horaria", by_band)
-        lines += ["## Las 3 con más interacciones", ""]
-        for i, p in enumerate(sorted(posts, key=lambda p: (-p.interactions, -p.reactions))[:3], 1):
+        if has_views(posts):
+            lines += ["## Las 3 con más vistas", ""]
+            best = sorted(posts, key=lambda p: (-(p.views or 0), -p.interactions))[:3]
+        else:
+            lines += ["## Las 3 con más interacciones", ""]
+            best = sorted(posts, key=lambda p: (-p.interactions, -p.reactions))[:3]
+        for i, p in enumerate(best, 1):
             local = p.published_at.astimezone(BOGOTA)
-            lines.append(f"{i}. **{p.interactions}** · {KIND_NAMES.get(p.kind, p.kind)} · "
+            score = (f"**{p.views or 0} vistas** · {p.viewers or 0} cuentas · {p.interactions} interacciones"
+                     if p.views is not None else f"**{p.interactions}**")
+            lines.append(f"{i}. {score} · {KIND_NAMES.get(p.kind, p.kind)} · "
                          f"{names.get(p.source, p.source)} · {local:%H:%M} · https://www.facebook.com/{p.post_id}")
         lines.append("")
     return "\n".join(lines) + "\n"

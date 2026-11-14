@@ -9,7 +9,7 @@ from zoneinfo import ZoneInfo
 
 import main
 from app.database import Database
-from app.metrics import MetricsError, PostStats, fetch_page_stats, weekly_report
+from app.metrics import NO_VIEWS, MetricsError, PostStats, daily_report, fetch_page_stats, fetch_views, weekly_report
 from tests.helpers import settings_for
 
 BOGOTA = ZoneInfo("America/Bogota")
@@ -30,7 +30,7 @@ class FakeSession:
 
     def get(self, url, params=None, timeout=None):
         self.calls.append((url, params))
-        return Resp(self.pages.pop(0))
+        return Resp(self.pages.pop(0) if self.pages else {"data": []})
 
 
 def post(pid, reactions=0, comments=(), shares=0, target=None):
@@ -142,6 +142,113 @@ class MetricsTests(unittest.TestCase):
         with patch.object(main, "publish_queues", return_value=[]), patch.object(self.db, "posts_since", return_value=published):
             report = main.build_daily_report(settings, self.db, SimpleNamespace(ai=ai), day)
         self.assertIn("## Recomendaciones (Claude)\n\n- Publica más datos útiles a las 9 h", report)
+
+def seen(pid, views=None, viewers=None, target=None):
+    data = {"id": pid}
+    if views is not None:
+        data["insights"] = {"data": [{"name": "post_media_view", "values": [{"value": views}]},
+                                     {"name": "post_total_media_view_unique", "values": [{"value": viewers}]}]}
+    if target:
+        data["attachments"] = {"data": [{"target": {"id": target}}]}
+    return data
+
+
+class ViewsTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.settings = replace(settings_for(self.temp.name), fb_page_id=PAGE, fb_page_token="secret-token")
+        self.db = Database(self.settings.database_url)
+        self.db.initialize()
+
+    def tearDown(self):
+        self.temp.cleanup()
+
+    def test_views_accounts_and_reel_plays(self):
+        session = FakeSession([
+            {"data": [seen("615_1", 40, 31), seen("615_2", 12, 9, target="9001")]},
+            {"data": [{"name": "blue_reels_play_count", "values": [{"value": 25}]},
+                      {"name": "post_impressions_unique", "values": [{"value": 20}]}]},
+        ])
+        views, problem = fetch_views(PAGE, "secret-token", "v26.0", datetime.now(timezone.utc), ["9001"], session)
+        self.assertIsNone(problem)
+        self.assertEqual(views["615_1"], {"views": 40, "viewers": 31, "plays": None})
+        self.assertEqual(views["9001"], {"views": 12, "viewers": 9, "plays": 25})   # the reel's video id
+        self.assertIn("insights.metric(post_media_view,post_total_media_view_unique)", session.calls[0][1]["fields"])
+        self.assertTrue(session.calls[1][0].endswith("/9001/video_insights"))
+
+    def test_empty_insights_say_why_and_errors_hide_the_token(self):
+        session = FakeSession([{"data": [seen("615_1"), seen("615_2")]}, {"error": {"code": 10, "message": "x"}}])
+        views, problem = fetch_views(PAGE, "secret-token", "v26.0", datetime.now(timezone.utc), ["9001", "9002"], session)
+        self.assertEqual((views, problem), ({}, NO_VIEWS))
+        self.assertEqual(len(session.calls), 2)   # one failed reel is enough: the others aren't asked
+        session = FakeSession([{"error": {"code": 100, "message": "bad secret-token"}}])
+        views, problem = fetch_views(PAGE, "secret-token", "v26.0", datetime.now(timezone.utc), (), session)
+        self.assertIn("código 100", problem)
+        self.assertNotIn("secret-token", problem)
+
+    def test_collect_keeps_views_and_the_report_ranks_by_them(self):
+        from datetime import date
+        day = date(2026, 11, 12)
+        at = lambda h: datetime(2026, 11, 12, h, 5, tzinfo=BOGOTA)
+        self.db.save_metrics([("615_1", "oferta", "alkosto", at(9), 0, 0, 0), ("615_2", "oferta", "amazon", at(18), 1, 0, 0),
+                              ("9001", "reel", "nike", at(13), 0, 0, 0)])
+        self.assertEqual(self.db.save_views({"615_1": {"views": 40, "viewers": 31}, "615_2": {"views": 4, "viewers": 3},
+                                             "9001": {"views": 12, "viewers": 9, "plays": 25}, "nope": {"views": 1}}), 3)
+        self.db.save_views({"615_1": {"views": None, "viewers": None, "plays": None}})   # a gap never erases data
+        self.db.save_metrics([("615_1", "oferta", "alkosto", at(9), 2, 0, 0)])             # reactions refresh keeps views
+        rows = self.db.metrics_between(at(0), at(23))
+        posts = main._stats(rows)
+        self.assertEqual([(p.post_id, p.reactions, p.views) for p in posts], [("615_1", 2, 40), ("9001", 0, 12), ("615_2", 1, 4)])
+        report = daily_report(posts, posts, {"planned": 3}, day, {"alkosto": "Alkosto", "amazon": "Amazon", "nike": "Nike"})
+        self.assertIn("**18,7 vistas por post** · 14,3 cuentas por post · 56 vistas en total", report)
+        self.assertIn("- Reels: 25 reproducciones en 1 reel (25,0 por reel)", report)
+        self.assertIn("Vistas por post | Cuentas por post |", report)
+        self.assertLess(report.index("| Alkosto |"), report.index("| Amazon |"))   # ranked by views per post
+        self.assertIn("1. **40 vistas** · 31 cuentas · 2 interacciones · Oferta (foto) · Alkosto · 09:05", report)
+        self.assertNotIn("sin datos", report)
+
+    def test_report_says_when_there_are_no_views(self):
+        from datetime import date
+        at = datetime(2026, 11, 12, 9, 5, tzinfo=BOGOTA)
+        posts = [PostStats("615_1", "oferta", "alkosto", at, 1)]
+        report = daily_report(posts, posts, {"planned": 1}, date(2026, 11, 12), {})
+        self.assertIn("- Vistas y cuentas: sin datos. Meta no entrega vistas", report)
+        self.assertNotIn("Vistas por post", report)
+        self.assertIn("## Las 3 con más interacciones", report)
+
+
+class TokenCheckTests(unittest.TestCase):
+    def test_lists_missing_permissions_instagram_and_views_without_the_token(self):
+        from app.token_check import check_token
+        session = FakeSession([
+            {"data": {"type": "PAGE", "is_valid": True, "expires_at": 0,
+                      "scopes": ["pages_show_list", "pages_manage_posts", "pages_read_engagement"]}},
+            {"name": "Ojo al Precio", "fan_count": 155, "followers_count": 155},
+            {"data": [{"id": "615_1"}, {"id": "615_2"}]},
+        ])
+        lines = check_token(PAGE, "secret-token", "v26.0", session)
+        text = "\n".join(lines)
+        self.assertIn("Token de página · válido · no vence", text)
+        self.assertIn("OK  pages_manage_posts", text)
+        self.assertIn("FALTA read_insights", text)
+        self.assertIn("FALTA instagram_content_publish", text)
+        self.assertIn("Instagram: ninguna cuenta profesional vinculada", text)
+        self.assertIn("Vistas: Meta responde vacío", text)
+        self.assertNotIn("secret-token", text)
+
+    def test_linked_instagram_and_readable_views(self):
+        from app.token_check import check_token
+        session = FakeSession([
+            {"error": {"code": 190, "message": "no secret-token"}},
+            {"name": "Ojo al Precio", "fan_count": 155, "instagram_business_account": {"id": "17", "username": "ojoalprecio.co"}},
+            {"data": [seen("615_1", 10, 8), seen("615_2")]},
+        ])
+        text = "\n".join(check_token(PAGE, "secret-token", "v26.0", session))
+        self.assertIn("Meta no deja ver la lista con este token (código 190)", text)
+        self.assertIn("Instagram: vinculada @ojoalprecio.co", text)
+        self.assertIn("Vistas: se leen (1 de 2", text)
+        self.assertNotIn("secret-token", text)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -13,7 +13,8 @@ from zoneinfo import ZoneInfo
 
 from app.config import Settings
 from app.events import CountdownRenderer, active_event, countdown, countdown_caption
-from app.metrics import ENOUGH_INTERACTIONS, MetricsError, PostStats, daily_report, fetch_page_stats, weekly_report
+from app.metrics import (ENOUGH_INTERACTIONS, MetricsError, PostStats, daily_report, fetch_page_stats, fetch_views,
+                         has_views, weekly_report)
 from app.content import ContentRenderer, NewsFeeds, content_caption, load_tips, news_post, next_tip
 from app.database import Database
 from app.models import DealObservation, DiscountEvidence, store_name, to_minor, variant_key
@@ -165,6 +166,16 @@ def collect_metrics(settings: Settings, database: Database, days: int = 8, sessi
             for pid, kind, source, at in ours if pid in counts]
     database.save_metrics(rows)
     print(f"Métricas: {len(rows)} de {len(ours)} publicaciones actualizadas.")
+    reels = [pid for pid, kind, *_ in ours if kind == "reel" and pid in counts]
+    try:  # views are a bonus on top of the counts: never let them stop a publishing run
+        views, problem = fetch_views(settings.fb_page_id, settings.fb_page_token, settings.meta_graph_api_version,
+                                     since - timedelta(hours=1), reel_ids=reels, session=session)
+    except Exception as exc:
+        views, problem = {}, f"lectura de vistas interrumpida ({type(exc).__name__})"
+    if views:
+        print(f"Vistas: {database.save_views(views)} publicaciones con vistas y cuentas.")
+    if problem:
+        print(f"Advertencia vistas: {problem}", file=sys.stderr)
     return len(rows)
 
 
@@ -172,11 +183,7 @@ def build_report(database: Database, end: datetime | None = None, days: int = 7)
     end = end or datetime.now(timezone.utc)
     start, before = end - timedelta(days=days), end - timedelta(days=2 * days)
 
-    def stats(rows):
-        return [PostStats(r["post_id"], r["kind"], r["source"], r["published_at"], r["reactions"], r["comments"],
-                          r["shares"]) for r in rows]
-
-    week, previous = stats(database.metrics_between(start, end)), stats(database.metrics_between(before, start))
+    week, previous = _stats(database.metrics_between(start, end)), _stats(database.metrics_between(before, start))
     names = {p.source: store_name(p.source) for p in week}
     return weekly_report(week, start, end, previous, names)
 
@@ -190,8 +197,12 @@ def planned_posts(settings: Settings, day) -> int:
 
 
 def _stats(rows) -> list[PostStats]:
-    return [PostStats(r["post_id"], r["kind"], r["source"], r["published_at"], r["reactions"], r["comments"], r["shares"])
+    return [PostStats(r["post_id"], r["kind"], r["source"], r["published_at"], r["reactions"], r["comments"], r["shares"],
+                      r.get("views"), r.get("viewers"), r.get("plays"))
             for r in rows]
+
+
+ENOUGH_VIEWS = 300  # with views, 7 days below this are still too few to compare hours or stores
 
 
 def build_daily_report(settings: Settings, database: Database, pipeline: OfferPipeline | None, day) -> str:
@@ -209,8 +220,12 @@ def build_daily_report(settings: Settings, database: Database, pipeline: OfferPi
     names = {src: store_name(src) for src in {p.source for p in posts} | set(ops["new_by_source"])}
     report = daily_report(posts, week, ops, day, names)
     engaged = sum(p.interactions for p in week)
+    seen = sum(p.views or 0 for p in week)
     ai = getattr(pipeline, "ai", None)
-    if engaged < ENOUGH_INTERACTIONS:
+    if has_views(week) and seen < ENOUGH_VIEWS and engaged < ENOUGH_INTERACTIONS:
+        report += (f"## Recomendaciones\n\nTodavía no hay suficientes vistas para comparar horas o tiendas "
+                   f"({seen} vistas en 7 días; hacen falta {ENOUGH_VIEWS}).\n")
+    elif not has_views(week) and engaged < ENOUGH_INTERACTIONS:
         report += (f"## Recomendaciones\n\nTodavía no hay suficientes reacciones para comparar horas o tiendas "
                    f"({engaged} interacciones en 7 días; hacen falta {ENOUGH_INTERACTIONS}). Por ahora el informe sirve "
                    f"para vigilar la operación.\n")
@@ -504,6 +519,7 @@ def parser() -> argparse.ArgumentParser:
     export.add_argument("--days", type=int, default=30)
     history = commands.add_parser("historial", help="Publicar un '¿Descuento real?' con el historial de precio")
     history.add_argument("--dry-run", action="store_true", help="Solo muestra qué hay y genera la imagen")
+    commands.add_parser("permisos", help="Comprobar permisos del token, Instagram vinculado y lectura de vistas")
     coupons = commands.add_parser("cupones", help="Publicar los cupones de assets/content/cupones.json")
     coupons.add_argument("--dry-run", action="store_true", help="Solo genera la imagen y muestra el texto")
     return root
@@ -596,6 +612,12 @@ def scheduled_coupons(settings: Settings, database: Database, now: datetime) -> 
 
 def main() -> int:
     args = parser().parse_args()
+    if args.command == "permisos":  # read-only and needs no database
+        from app.token_check import check_token
+        for line in check_token(os.getenv("FB_PAGE_ID", ""), os.getenv("FB_PAGE_TOKEN", ""),
+                                os.getenv("META_GRAPH_API_VERSION", "v26.0")):
+            print(line)
+        return 0
     try:
         settings = Settings.from_env()
         database, pipeline = build_runtime(settings, include_sources=args.command in {"scan", "run", "publish"})

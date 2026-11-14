@@ -15,8 +15,9 @@ BOGOTA = ZoneInfo("America/Bogota")
 # Meta renamed and retired several insights over 2025-26; each one is tried and kept only if it answers.
 POST_METRICS = ("post_media_view", "post_total_media_view_unique", "post_impressions_unique", "post_impressions",
                 "post_clicks", "post_reactions_by_type_total")
-VIDEO_METRICS = ("total_video_views", "total_video_views_unique", "total_video_avg_time_watched",
-                 "post_video_views", "blue_reels_play_count", "post_impressions_unique")
+# Reels answer on /{video-id}/video_insights (on /insights Meta says the field doesn't exist)
+VIDEO_METRICS = ("blue_reels_play_count", "fb_reels_total_plays", "post_impressions_unique",
+                 "post_video_avg_time_watched")
 PAGE_METRICS = ("page_media_view", "page_total_media_view_unique", "page_impressions_unique", "page_impressions",
                 "page_post_engagements", "page_follows", "page_daily_follows_unique", "page_daily_unfollows_unique",
                 "page_views_total", "page_fans")
@@ -35,10 +36,11 @@ def _err(payload: dict) -> str:
     return f"{e.get('code', '')} {e.get('message', '')}".strip()[:160]
 
 
-def _working(session, base: str, object_id: str, metrics, token: str, extra: dict | None = None) -> tuple[list, dict]:
+def _working(session, base: str, object_id: str, metrics, token: str, extra: dict | None = None,
+             edge: str = "insights") -> tuple[list, dict]:
     ok, failed = [], {}
     for m in metrics:
-        p = _get(session, f"{base}/{object_id}/insights", {"metric": m, "access_token": token, **(extra or {})})
+        p = _get(session, f"{base}/{object_id}/{edge}", {"metric": m, "access_token": token, **(extra or {})})
         if "error" in p:
             failed[m] = _err(p)
         else:
@@ -117,7 +119,8 @@ def export_stats(settings, database, days: int = 30, path: Path = Path("generate
     sample_post = next((pid for pid, kind, *_ in ours if kind != "reel"), None)
     sample_reel = next((pid for pid, kind, *_ in ours if kind == "reel"), None)
     post_ok, post_failed = _working(session, base, sample_post, POST_METRICS, token) if sample_post else ([], {})
-    reel_ok, reel_failed = _working(session, base, sample_reel, VIDEO_METRICS, token) if sample_reel else ([], {})
+    reel_ok, reel_failed = (_working(session, base, sample_reel, VIDEO_METRICS, token, edge="video_insights")
+                            if sample_reel else ([], {}))
 
     posts = []
     for pid, kind, src, at in ours:
@@ -132,7 +135,8 @@ def export_stats(settings, database, days: int = 30, path: Path = Path("generate
             row["content_key"] = contents[pid]
         wanted = reel_ok if kind == "reel" else post_ok
         if wanted:
-            p = _get(session, f"{base}/{pid}/insights", {"metric": ",".join(wanted), "access_token": token})
+            edge = "video_insights" if kind == "reel" else "insights"
+            p = _get(session, f"{base}/{pid}/{edge}", {"metric": ",".join(wanted), "access_token": token})
             row["insights"] = _values(p) if "error" not in p else {"error": _err(p)}
         posts.append(row)
 

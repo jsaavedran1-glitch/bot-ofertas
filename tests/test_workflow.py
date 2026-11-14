@@ -12,3 +12,8 @@ class WorkflowTests(unittest.TestCase):
         self.assertNotIn("actions/cache@", text)
         self.assertIn('POST_MODE: "review"', text)
         self.assertNotIn("FB_APP_SECRET", text)
+
+    def test_permissions_mode_is_wired(self):
+        text = Path(".github/workflows/bot.yml").read_text(encoding="utf-8")
+        self.assertIn("          - permisos\n", text)
+        self.assertIn("permisos)  python main.py permisos ;;", text)

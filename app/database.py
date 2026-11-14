@@ -226,6 +226,8 @@ class Database:
                 conn.execute(statement)
         self._add_column("candidates", "rating", "REAL")
         self._add_column("candidates", "reviews", "INTEGER")
+        for column in ("views", "viewers", "plays"):  # from Meta insights; NULL while the token can't read them
+            self._add_column("post_metrics", column, "INTEGER")
 
     def put_media(self, name: str, kind: str, data: bytes) -> None:
         """Store a private audio file (music/effects whose license forbids publishing it in the repo)."""
@@ -528,6 +530,19 @@ class Database:
                     ),
                     (post_id, kind, source, at.astimezone(timezone.utc).isoformat(), reactions, comments, shares, now),
                 )
+
+    def save_views(self, views: dict[str, dict]) -> int:
+        """Views, accounts and reel plays for posts already in post_metrics; a missing value keeps the old one."""
+        updated = 0
+        with self._transaction() as conn:
+            for post_id, row in views.items():
+                cursor = conn.execute(
+                    self._sql("UPDATE post_metrics SET views=COALESCE(?, views), viewers=COALESCE(?, viewers),"
+                              " plays=COALESCE(?, plays) WHERE post_id=?"),
+                    (row.get("views"), row.get("viewers"), row.get("plays"), post_id),
+                )
+                updated += max(0, cursor.rowcount or 0)
+        return updated
 
     def metrics_between(self, start: datetime, end: datetime) -> list[dict]:
         sql = self._sql("SELECT * FROM post_metrics WHERE published_at>=? AND published_at<? ORDER BY published_at")

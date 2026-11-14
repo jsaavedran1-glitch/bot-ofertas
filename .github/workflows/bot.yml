@@ -21,6 +21,7 @@ on:
           - exportar
           - colores
           - historial
+          - permisos
 
 permissions:
   contents: read
@@ -136,6 +137,7 @@ jobs:
             cupones)   python main.py cupones ;;
             exportar)  python main.py exportar --days 30 ;;
             historial) python main.py historial --dry-run ;;
+            permisos)  python main.py permisos ;;
             colores)   python -c "from app.store_colors import store_color as c; [print('COLOR', s, c(s, u)) for s, u in (('alkosto','https://www.alkosto.com/x'),('ktronix','https://www.ktronix.com/x'),('exito','https://www.exito.com/x'),('falabella','https://www.falabella.com.co/x'),('nike','https://www.nike.com.co/x'),('tennis','https://www.tennis.com.co/x'),('amazon','https://www.amazon.com/x'),('mercadolibre','https://www.mercadolibre.com.co/x'))]" ;;
             *) echo "Modo no válido: $REQUESTED_MODE"; exit 2 ;;
           esac
