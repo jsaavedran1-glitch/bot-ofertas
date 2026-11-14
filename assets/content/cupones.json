@@ -1,0 +1,12 @@
+{
+  "id": "ml-2026-11-14",
+  "store": "Mercado Libre",
+  "note": "Se aplica un cupón por compra. Condiciones y disponibilidad según Mercado Libre.",
+  "coupons": [
+    {"code": "PIDEHOY", "benefit": "$50.000 OFF", "minimum": "$200.000", "tag": "Por agotarse"},
+    {"code": "AMPARO", "benefit": "15% OFF", "minimum": "$105.000"},
+    {"code": "JAMES15", "benefit": "15% OFF", "minimum": "$80.000"},
+    {"code": "NOVIEMBRE", "benefit": "$15.000 OFF", "minimum": "$80.000"}
+  ],
+  "caption": "Mercado Libre Cupones:\n• PIDEHOY: $50.000 OFF desde $200.000 (por agotarse)\n• AMPARO: 15% OFF desde $105.000\n• JAMES15: 15% OFF desde $80.000\n• NOVIEMBRE: $15.000 OFF desde $80.000\n\n#MercadoLibre #Cupones #CuponesMercadoLibre #MercadoLibreColombia #CodigoDescuento #CodigosDeDescuento #OjoAlPrecio #Descuentos #Ofertas #Ahorro #BlackFriday #BlackFridayColombia #Colombia"
+}

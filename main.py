@@ -479,11 +479,37 @@ def parser() -> argparse.ArgumentParser:
     report.add_argument("--ayer", action="store_true", help="Con --diario: el día de ayer completo")
     preview = commands.add_parser("ai-preview", help="Ver los textos de Claude para ofertas reales, sin publicar")
     preview.add_argument("--limit", type=int, default=20)
+    coupons = commands.add_parser("cupones", help="Publicar los cupones de assets/content/cupones.json")
+    coupons.add_argument("--dry-run", action="store_true", help="Solo genera la imagen y muestra el texto")
     return root
+
+
+def publish_coupons(dry_run: bool) -> int:
+    """Manual coupon post: no database or deal sources needed, only the Page credentials."""
+    from app.coupons import CouponRenderer, load_coupon_post
+    from app.publishers.facebook import FacebookPublisher
+
+    post = load_coupon_post()
+    image = CouponRenderer(Path(os.getenv("GENERATED_DIR", "generated"))).render_coupons(post)
+    print(f"Imagen: {image.resolve()}\n{post.caption}\n")
+    if dry_run:
+        print("Vista previa de cupones. No se publicó nada.")
+        return 0
+    publisher = FacebookPublisher(
+        os.getenv("FB_PAGE_ID", ""), os.getenv("FB_PAGE_TOKEN", ""), os.getenv("META_GRAPH_API_VERSION", "v26.0")
+    )
+    print(f"Publicación de cupones creada: {publisher.publish_photo(image, post.caption)}")
+    return 0
 
 
 def main() -> int:
     args = parser().parse_args()
+    if args.command == "cupones":
+        try:
+            return publish_coupons(args.dry_run)
+        except (ValueError, FacebookPublishError) as exc:
+            print(f"Error: {exc}", file=sys.stderr)
+            return 2
     try:
         settings = Settings.from_env()
         database, pipeline = build_runtime(settings, include_sources=args.command in {"scan", "run", "publish"})

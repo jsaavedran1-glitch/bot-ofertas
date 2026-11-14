@@ -17,6 +17,7 @@ on:
           - automatic
           - ai-preview
           - informe
+          - cupones
 
 permissions:
   contents: read
@@ -116,6 +117,7 @@ jobs:
             review)    python main.py scan ;;
             ai-preview) python main.py ai-preview --limit 12 ;;
             informe)   python main.py informe --collect --save --diario ;;
+            cupones)   python main.py cupones ;;
             *) echo "Modo no válido: $REQUESTED_MODE"; exit 2 ;;
           esac
 
