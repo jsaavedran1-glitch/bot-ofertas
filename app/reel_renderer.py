@@ -8,7 +8,7 @@ import subprocess
 
 from PIL import Image, ImageDraw, ImageOps
 
-from app.image_renderer import GREEN, MUTED, NAVY, PANEL, RED, WHITE, YELLOW, MissingProductImage, OfferImageRenderer
+from app.image_renderer import GREEN, MUTED, NAVY, PANEL, RED, THEMES, WHITE, YELLOW, MissingProductImage, OfferImageRenderer, gradient
 from app.models import DealObservation, DiscountEvidence, display_name, from_minor, money, rating_text, store_name, to_minor
 from app.scoring import price_cop
 
@@ -33,13 +33,14 @@ def music_track(seed: str, folder: Path | None = None) -> Path | None:
     return tracks[int(hashlib.md5(seed.encode()).hexdigest(), 16) % len(tracks)]
 
 
-def sfx_cues(folder: Path | None = None) -> list[tuple[Path, float]]:
+def sfx_cues(folder: Path | None = None, phases=None) -> list[tuple[Path, float]]:
     """(file, second) for each effect present in the folder; empty when there are none."""
     folder = folder or SFX_DIR
     if not folder.is_dir():
         return []
     files = {p.stem.lower(): p for p in folder.glob("*") if p.suffix.lower() in MUSIC_EXT}
-    return [(files[name], at) for name, at in SFX_CUES if name in files]
+    cues = cue_times(phases) if phases is not None else SFX_CUES
+    return [(files[name], at) for name, at in cues if name in files]
 
 
 def audio_args(track: Path | None, cues: list[tuple[Path, float]], first_input: int = 1) -> list[str]:
@@ -68,10 +69,42 @@ TITLE_Y = 1035
 LOWER = (0, 1140, W, 1600)  # area where the phases swap
 FOOTER = (65, 1650, 1015, 1730)
 BURST_CENTER, BURST_R, BURST_BOX = (W - 170, 440), 112, 300
-# (start, end, kind): hook, price reveal, product details, price recap, call to action
-PHASES = ((0.0, 2.0, "hook"), (2.0, 5.6, "price"), (5.6, 9.6, "info"), (9.6, 12.6, "price"), (12.6, SECONDS, "cta"))
+# (start, end, kind). Three story orders rotate per product so the reels don't all look the same
+# (Meta's support flagged "repetitive format"): classic, benefits first, price first.
+PHASE_SETS = (
+    ((0.0, 2.0, "hook"), (2.0, 5.6, "price"), (5.6, 9.6, "info"), (9.6, 12.6, "price"), (12.6, SECONDS, "cta")),
+    ((0.0, 4.0, "info"), (4.0, 6.0, "hook"), (6.0, 11.0, "price"), (11.0, SECONDS, "cta")),
+    ((0.0, 4.4, "price"), (4.4, 8.4, "info"), (8.4, 11.4, "price"), (11.4, SECONDS, "cta")),
+)
+PHASES = PHASE_SETS[0]
+
+
+def reel_variant(deal: DealObservation) -> tuple[tuple, int]:
+    """(phases, theme index) for this product, stable across renders."""
+    h = int(hashlib.md5(f"variant{deal.external_id}".encode()).hexdigest(), 16)
+    return PHASE_SETS[h % len(PHASE_SETS)], (h // len(PHASE_SETS)) % len(THEMES)
+
+
+def cue_times(phases=PHASES) -> list[tuple[str, float]]:
+    """Effects follow the story: a pop at the start, a whoosh into each phase, coins as each price lands."""
+    cues, first_price = [("pop", 0.3)], True
+    for i, (start, _end, kind) in enumerate(phases):
+        if i:
+            cues.append(("whoosh", round(start - 0.15, 2)))
+        if kind == "price":
+            cues.append(("monedas", round(start + 1.0, 2)))
+            if first_price:
+                cues.append(("notificacion", round(start + 1.6, 2)))
+                first_price = False
+    return cues
+
+
+def story_moment(phases=PHASES) -> float:
+    """Inside the first price phase, once the new price and the savings are on screen."""
+    start = next(p[0] for p in phases if p[2] == "price")
+    return start + 2.9
 FADE = 0.25
-STORY_MOMENT = 4.9  # seconds into the reel: before price struck through, new price and savings shown
+STORY_MOMENT = story_moment(PHASES)  # classic order: before price struck through, new price and savings shown
 
 
 def _detail_lines(deal: DealObservation) -> list[str]:
@@ -126,7 +159,7 @@ class ReelRenderer(OfferImageRenderer):
     ) -> Path:
         base, photo, texts = self._prepare(deal, usd_cop_rate, product_image_bytes, link_in_comment)
         output = self.output_dir / f"{name}.mp4"
-        audio = audio_args(music_track(deal.external_id, self.music_dir), sfx_cues(self.sfx_dir))
+        audio = audio_args(music_track(deal.external_id, self.music_dir), sfx_cues(self.sfx_dir, texts["phases"]))
         cmd = [
             "ffmpeg", "-y", "-loglevel", "error",
             "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{W}x{H}", "-r", str(FPS), "-i", "-",
@@ -157,7 +190,7 @@ class ReelRenderer(OfferImageRenderer):
     ) -> Path:
         """9:16 still for Page stories: the reel's price moment plus a pointer to the post."""
         base, photo, texts = self._prepare(deal, usd_cop_rate, product_image_bytes, False)
-        frame = self._frame(base, photo, texts, STORY_MOMENT)
+        frame = self._frame(base, photo, texts, story_moment(texts["phases"]))
         self._story_pointer(frame, "Mira la oferta completa en nuestra página", FOOTER)
         output = self.output_dir / f"{name}.png"
         frame.save(output, format="PNG", optimize=True)
@@ -224,20 +257,18 @@ class ReelRenderer(OfferImageRenderer):
             "store": self._text_layer(f"EN {store_name(deal.source).upper()}", 64, YELLOW, max_width=900, minimum=40, weight="Black"),
             "points": self._points_layer(_detail_lines(deal)),
         }
-        return self._base(deal), photo, texts
+        texts["phases"], theme = reel_variant(deal)
+        return self._base(deal, theme), photo, texts
 
     # ---------- static layers ----------
 
-    def _background(self) -> Image.Image:
+    def _background(self, theme: int = 0) -> Image.Image:
         img = Image.new("RGB", (W, H), NAVY)
-        draw = ImageDraw.Draw(img)
-        for y in range(H):
-            r = y / H
-            draw.line((0, y, W, y), fill=(8 + int(10 * r), 24 + int(22 * r), 48 + int(40 * r)))
+        gradient(ImageDraw.Draw(img), (W, H), theme)
         return img
 
-    def _base(self, deal: DealObservation) -> Image.Image:
-        img = self._background()
+    def _base(self, deal: DealObservation, theme: int = 0) -> Image.Image:
+        img = self._background(theme)
         draw = ImageDraw.Draw(img)
         # Brand on top (visible full screen; the feed's 4:5 crop starts below it)
         size = 84
@@ -356,13 +387,14 @@ class ReelRenderer(OfferImageRenderer):
             frame.paste(b, (BURST_CENTER[0] - b.width // 2, BURST_CENTER[1] - b.height // 2), b)
 
         lower = Image.new("RGBA", (LOWER[2] - LOWER[0], LOWER[3] - LOWER[1]), (0, 0, 0, 0))
-        for idx, (start, end, kind) in enumerate(PHASES):
+        phases = texts.get("phases", PHASES)
+        for idx, (start, end, kind) in enumerate(phases):
             if not start <= t < end:
                 continue
             alpha = 1.0
             if idx > 0:
                 alpha = min(alpha, (t - start) / FADE)
-            if idx < len(PHASES) - 1:
+            if idx < len(phases) - 1:
                 alpha = min(alpha, (end - t) / FADE)
             if alpha <= 0:
                 continue

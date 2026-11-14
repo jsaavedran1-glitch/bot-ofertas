@@ -135,7 +135,7 @@ class InsightTests(unittest.TestCase):
     def test_caption_mentions_lowest_price_and_rating_only_when_true(self):
         text = facebook_copy(self.deal(rating=4.8, reviews=85, lowest_30d=True), None, True)
         self.assertIn("precio más bajo", text.lower())
-        self.assertIn("⭐ 4,8 (85 opiniones) en Alkosto", text)
+        self.assertIn("🏪 Alkosto · ⭐ 4,8 (85 opiniones)", text)
         plain = facebook_copy(self.deal(), None, True)
         self.assertNotIn("más bajo", plain.lower())
         self.assertNotIn("⭐", plain)
@@ -228,9 +228,10 @@ class ReelAudioTests(unittest.TestCase):
             renderer = rr.ReelRenderer(Path(directory))
             renderer.sfx_dir = sfx
             path = renderer.render_reel(deal, "s1", product_image_bytes=buffer.getvalue())
-            out = subprocess.run(["ffmpeg", "-i", str(path), "-af", "atrim=2.9:3.4,volumedetect", "-f", "null", "-"],
-                                 capture_output=True, text=True).stderr
-            self.assertGreater(float(out.split("max_volume:")[1].split("dB")[0]), -30)  # the coins cue sounds at 3 s
+            coins = next(t for name, t in rr.cue_times(rr.reel_variant(deal)[0]) if name == "monedas")
+            out = subprocess.run(["ffmpeg", "-i", str(path), "-af", f"atrim={coins - 0.1}:{coins + 0.4},volumedetect",
+                                  "-f", "null", "-"], capture_output=True, text=True).stderr
+            self.assertGreater(float(out.split("max_volume:")[1].split("dB")[0]), -30)  # the coins cue sounds on time
 
 
 class PromoStoryTests(unittest.TestCase):

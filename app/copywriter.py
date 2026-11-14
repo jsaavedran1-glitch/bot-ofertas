@@ -41,7 +41,7 @@ def _hook(deal: DealObservation, usd_cop_rate: Decimal | None = None) -> str:
     if deal.lowest_30d:
         return _pick(deal, [
             f"🔻 ¡Precio más bajo en 30 días! {short} a {now}",
-            f"🔻 {short} nunca estuvo tan barato este mes: {now}",
+            f"🔻 {short} en su precio más bajo del mes: {now}",
         ])
     if deal.evidence != DiscountEvidence.OFFICIAL_ORIGINAL:
         # Discount vs. our own price history: never claim a store "before" price.
@@ -123,7 +123,8 @@ def facebook_copy(
     include_affiliate_disclosure: bool = True,
     link_in_comment: bool = False,
 ) -> str:
-    """Hook first (visible before "ver más"), then the key numbers, link, question; small print last."""
+    """Short on purpose (Meta's support flagged long captions): hook, one line of value, the price,
+    one line with store, rating and link; then the question, the small print and three hashtags."""
     now, before, saved = _prices(deal, usd_cop_rate)
     approx = "≈ " if deal.currency == "USD" and usd_cop_rate is not None else ""
     ai = deal.ai
@@ -136,44 +137,33 @@ def facebook_copy(
     lines = [hook]
     if ai and ai.hook:
         lines.append(ai.hook)
-    lines.append("")
     if before and deal.evidence == DiscountEvidence.GIFT_CARD_VALUE:
         value = f"US${from_minor(deal.original_price_minor, 'USD'):,.2f}"
         extra = f"US${from_minor(deal.original_price_minor - deal.price_minor, 'USD'):,.2f}"
         paid = f"US${from_minor(deal.price_minor, 'USD'):,.2f}"
         lines.append(f"✅ Pagas {paid} ({approx}{now}) y recibes {value} de saldo: {extra} extra")
     elif before and deal.evidence == DiscountEvidence.OFFICIAL_ORIGINAL:
-        lines.append(f"✅ Antes {approx}{before} → Ahora {approx}{now} (ahorras {saved})")
+        lines.append(f"✅ Antes {approx}{before} → Ahora {approx}{now}")
     elif before:
-        lines.append(f"✅ Precio típico observado {approx}{before} → Hoy {approx}{now} (-{deal.discount_pct}%)")
+        lines.append(f"✅ Precio típico {approx}{before} → Hoy {approx}{now} (-{deal.discount_pct}%)")
     else:
         lines.append(f"✅ Precio: {approx}{now}")
-    if deal.lowest_30d:
-        lines.append("🔻 Es el precio más bajo que hemos visto en los últimos 30 días")
+    if deal.evidence == DiscountEvidence.GIFT_CARD_VALUE:
+        lines.append(f"🎮 {deal.shipping_note}")
+    where = [f"🏪 {store_name(deal.source)}"]
     stars = rating_text(deal)
     if stars:
-        lines.append(f"⭐ {stars} en {store_name(deal.source)}")
-    # Amazon titles arrive in English: show Claude's Spanish version; store titles stay as they are.
-    title = ai.title_es if ai and ai.title_es and deal.source in ENGLISH_SOURCES else deal.title
-    lines.append(f"🛍️ {title}")
-    lines.extend(f"✔️ {point}" for point in (ai.points if ai else ()))
-    if deal.evidence == DiscountEvidence.GIFT_CARD_VALUE:
-        lines.append(f"🏪 {store_name(deal.source)}")
-        lines.append(f"🎮 {deal.shipping_note}")
-    else:
-        lines.append(f"🏪 {store_name(deal.source)}" + (f" · 🚚 {deal.shipping_note}" if deal.shipping_note else ""))
-    lines.append("👇 Link en el primer comentario" if link_in_comment else f"👉 {deal.url}")
-    lines.append("")
+        where.append(f"⭐ {stars}")
+    where.append("👇 Link en el primer comentario" if link_in_comment else f"👉 {deal.url}")
+    lines.append(" · ".join(where))
     local_time = deal.observed_at.astimezone(ZoneInfo("America/Bogota"))
-    small = [f"Verificado el {local_time.strftime('%d/%m/%Y a las %H:%M')}. Precio sujeto a cambios."]
+    small = [f"Precio verificado el {local_time.strftime('%d/%m a las %H:%M')}; puede cambiar."]
     if deal.currency == "USD":
-        dollars = f"US${from_minor(deal.price_minor, 'USD'):,.2f}"
-        small.append(f"Precio en tienda: {dollars}. Valor en pesos aproximado; envío e impuestos se confirman al pagar.")
+        small.append(f"En tienda: US${from_minor(deal.price_minor, 'USD'):,.2f}; pesos aproximados, envío e impuestos al pagar.")
     if deal.affiliate and include_affiliate_disclosure:
         small.append("Como Asociado de Amazon, ganamos con las compras que cumplen los requisitos." if deal.source == "amazon"
                      else "Enlace afiliado: podemos recibir una comisión sin costo adicional para ti.")
-    lines.append("ℹ️ " + " ".join(small))
-    lines.extend(["", ai.question if ai and ai.question else _pick(deal, _QUESTIONS, salt="q"), ""])
+    lines.extend(["", "ℹ️ " + " ".join(small), "", ai.question if ai and ai.question else _pick(deal, _QUESTIONS, salt="q"), ""])
     # Few, specific hashtags reach further on Facebook than a long list: the brand tag plus two.
     store_tag = _SOURCE_TAGS.get(deal.source, "").split(" ")[0]
     if event:  # the event's tag first: it's what people search those days

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+
 from decimal import Decimal
 from functools import lru_cache
 from io import BytesIO
@@ -20,6 +22,28 @@ CANVAS = (1080, 1080)  # square: promo grid
 POST_CANVAS = (1080, 1350)  # 4:5 vertical: fills ~20% more of the phone screen in the feed
 NAVY, PANEL, WHITE, MUTED = "#08182F", "#0E2647", "#FFFFFF", "#AFC0D6"
 YELLOW, RED, GREEN = "#FFD21F", "#FF3B3B", "#3DDC84"
+# Background gradients (top, bottom) that rotate per product so the feed doesn't look like one template
+# (Meta's support flagged "repetitive format"). Yellow, red and white accents read well on all of them.
+THEMES = (
+    ((8, 24, 48), (18, 46, 88)),     # navy (the brand's)
+    ((34, 10, 56), (86, 28, 110)),   # purple
+    ((4, 36, 44), (8, 92, 94)),      # teal
+    ((26, 10, 14), (92, 22, 34)),    # wine
+)
+
+
+def gradient(draw, size: tuple[int, int], theme: int) -> None:
+    top, bottom = THEMES[theme % len(THEMES)]
+    w, h = size
+    for y in range(h):
+        r = y / h
+        draw.line((0, y, w, y), fill=tuple(int(a + (b - a) * r) for a, b in zip(top, bottom)))
+
+
+def photo_variant(external_id: str) -> tuple[int, bool, int]:
+    """(theme, discount burst on the left, card corner radius) for a product, stable across renders."""
+    h = int(hashlib.md5(f"look{external_id}".encode()).hexdigest(), 16)
+    return h % len(THEMES), bool((h // len(THEMES)) % 2), (44, 18, 70)[(h // (2 * len(THEMES))) % 3]
 MAX_IMAGE_BYTES = 8 * 1024 * 1024
 MAX_REDIRECTS = 3
 Image.MAX_IMAGE_PIXELS = 25_000_000
@@ -142,9 +166,9 @@ class OfferImageRenderer:
         W, H = POST_CANVAS
         canvas = Image.new("RGB", POST_CANVAS, NAVY)
         draw = ImageDraw.Draw(canvas)
-        for y in range(H):
-            r = y / H
-            draw.line((0, y, W, y), fill=(8 + int(10 * r), 24 + int(22 * r), 48 + int(40 * r)))
+        theme, burst_left, radius = photo_variant(deal.external_id)
+        burst_left = burst_left and not deal.lowest_30d  # the "lowest in 30 days" ribbon owns the top-left corner
+        gradient(draw, POST_CANVAS, theme)
 
         product = self._load_product_image(product_image_bytes or self._download(deal.image_url))
         if product is None and require_image:
@@ -161,7 +185,7 @@ class OfferImageRenderer:
 
         # Product card
         card = (48, 150, W - 48, 735)
-        draw.rounded_rectangle(card, radius=44, fill=WHITE)
+        draw.rounded_rectangle(card, radius=radius, fill=WHITE)
         if product is None:
             self._draw_follow_cta(canvas, draw, (card[0] + 30, card[1] + 30, card[2] - 30, card[3] - 30))
         else:
@@ -172,8 +196,8 @@ class OfferImageRenderer:
         self._stamp(canvas, draw, deal, card)
         self._insight_badges(canvas, draw, deal, card)
 
-        # Discount burst overlapping the card's top-right corner
-        self._burst(draw, (W - 160, 232), 128, f"-{deal.discount_pct}%")
+        # Discount burst overlapping one of the card's top corners
+        self._burst(draw, (160 if burst_left else W - 160, 232), 128, f"-{deal.discount_pct}%")
 
         # Title
         title_font, title_lines = self._fit_lines(draw, display_name(deal), W - 140, max_lines=2, start=44, minimum=30)

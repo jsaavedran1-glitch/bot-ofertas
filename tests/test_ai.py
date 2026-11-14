@@ -134,8 +134,9 @@ class ClaudeCaptionTests(unittest.TestCase):
         deal = replace(AMAZON, ai=merge_copy(names, text))
         caption = facebook_copy(deal, None, True)
         self.assertIn("☕ Tu espresso de cafetería en casa", caption.splitlines()[1])
-        self.assertIn("🛍️ Cafetera espresso Philips Baristina de 16 bar", caption)
-        self.assertIn("✔️ Muele y prepara al instante", caption)
+        self.assertIn("Cafetera espresso Philips Baristina", caption.splitlines()[0])  # Spanish name, not Amazon's
+        self.assertNotIn("✔️", caption)  # benefits go in the reel; the caption stays short
+        self.assertLessEqual(len(caption.splitlines()), 10)
         self.assertIn("¿Espresso o tinto?", caption)
         self.assertEqual(caption.splitlines()[-1], "#OjoAlPrecio #cafe #BlackFriday")
         self.assertIn("US$80.00", caption)  # price lines still come from our data
@@ -152,7 +153,7 @@ class ClaudeCaptionTests(unittest.TestCase):
     def test_store_titles_in_spanish_are_kept(self):
         alkosto = replace(AMAZON, source="alkosto", currency="COP", title="Freidora de Aire MIDEA 4.5 L",
                           ai=AiCopy(title_es="Freidora de aire Midea de 4.5 L"))
-        self.assertIn("🛍️ Freidora de Aire MIDEA 4.5 L", facebook_copy(alkosto, None, True))
+        self.assertIn("Freidora de Aire MIDEA 4.5 L", facebook_copy(alkosto, None, True))
 
 
 class StubClaude:

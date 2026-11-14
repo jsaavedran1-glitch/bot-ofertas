@@ -35,7 +35,7 @@ class ModelsAndScoringTests(unittest.TestCase):
     def test_history_wording_never_says_antes(self):
         deal = self.deal(evidence=DiscountEvidence.OWN_HISTORY)
         copy = facebook_copy(deal, None)
-        self.assertIn("Precio típico observado", copy)
+        self.assertIn("Precio típico", copy)
         self.assertNotIn("antes", copy.lower())
 
     def test_money_uses_integer_minor_units(self):
