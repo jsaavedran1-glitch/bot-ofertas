@@ -86,7 +86,9 @@ def find_promo(sources: dict, recently_posted, day_index: int) -> Promo | None:
 
 
 def promo_links(promo: Promo) -> str:
-    return "\n".join(f"{n} {d.url}" for n, d in zip(NUMBERS, promo.deals))
+    from app.links import post_ref, tracked
+
+    return "\n".join(f"{n} {tracked(d.url, post_ref('promo', d.candidate_id))}" for n, d in zip(NUMBERS, promo.deals))
 
 
 def promo_copy(promo: Promo, now: datetime | None = None, link_in_comment: bool = False) -> str:

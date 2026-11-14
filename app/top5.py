@@ -61,4 +61,6 @@ def top_copy(items: list[Candidate], rate: Decimal | None, link_in_comment: bool
 
 
 def top_links(items: list[Candidate]) -> str:
-    return "\n".join(f"{n} {c.deal.url}" for n, c in zip(NUMBERS, items))
+    from app.links import post_ref, tracked
+
+    return "\n".join(f"{n} {tracked(c.deal.url, post_ref('top5', c.id))}" for n, c in zip(NUMBERS, items))

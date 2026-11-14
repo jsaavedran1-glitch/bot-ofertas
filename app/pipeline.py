@@ -15,6 +15,7 @@ from app.reel_renderer import ReelRenderer
 from app.models import Candidate, DiscountEvidence, utc_now, variant_key
 from app.publishers.facebook import FacebookPublisher, FacebookPublishError
 from app.publishers.instagram import InstagramPublisher, InstagramPublishError
+from app.links import post_ref, tracked
 from app.quality import ensure_recommendable, names_of
 from app.publishers.telegram import TelegramPublisher, deal_caption, top_caption
 from app.rates import ExchangeRateProvider
@@ -235,7 +236,8 @@ class OfferPipeline:
             attempts = 4 if as_reel else 1
             for attempt in range(attempts):
                 try:
-                    publisher.comment(post_id, f"👉 Aquí la oferta: {candidate.deal.url}")
+                    url = tracked(candidate.deal.url, post_ref("reel" if as_reel else "oferta", candidate.id))
+                    publisher.comment(post_id, f"👉 Aquí la oferta: {url}")
                     break
                 except FacebookPublishError as exc:
                     if attempt == attempts - 1:
@@ -385,7 +387,7 @@ class OfferPipeline:
             self._to_instagram("historial", publisher, caption)
             if self.settings.link_in_comment:
                 try:
-                    publisher.comment(post_id, f"👉 Aquí la oferta: {c.deal.url}")
+                    publisher.comment(post_id, f"👉 Aquí la oferta: {tracked(c.deal.url, post_ref('historial', c.id))}")
                 except FacebookPublishError as exc:
                     print(f"Advertencia historial: {exc}", file=sys.stderr)
             if self.story_due():

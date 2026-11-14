@@ -110,3 +110,18 @@ class ReelTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class LinkTagTests(unittest.TestCase):
+    def test_awin_links_get_a_per_post_clickref(self):
+        from app.links import post_ref, tracked
+        url = "https://www.awin1.com/pclick.php?p=123&a=456&m=789"
+        tagged = tracked(url, post_ref("reel", "1a2b3c4d5e6f"))
+        self.assertIn("clickref=reel-1a2b3c4d", tagged)
+        self.assertIn("p=123", tagged)
+        self.assertEqual(tracked(tagged, "otro").count("clickref"), 1)
+
+    def test_other_links_are_untouched(self):
+        from app.links import tracked
+        for url in ("https://meli.la/abc", "https://www.falabella.com.co/x?y=1", "https://www.amazon.com/s?k=x&tag=t-20"):
+            self.assertEqual(tracked(url, "reel-x"), url)
