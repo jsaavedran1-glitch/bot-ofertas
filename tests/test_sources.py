@@ -141,6 +141,14 @@ class DealNewsSourceTests(unittest.TestCase):
         self.assertIsNotNone(accepted)
         self.assertAlmostEqual(accepted.discount_pct, 70, delta=1)  # rounding of the derived "antes" price
 
+    def test_amazon_reads_only_tech_and_gaming_categories(self):
+        from app.sources.amazon_rss import _FEEDS
+        urls = " ".join(url for url, _ in _FEEDS)
+        for category in ("Electronics", "Computers", "Video-Games"):
+            self.assertIn(category, urls)
+        for category in ("Home-Garden", "Health-Beauty", "Sports-Fitness", "Shoes"):
+            self.assertNotIn(category, urls)
+
 
 class _Resp:
     def __init__(self, payload):
