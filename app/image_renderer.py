@@ -20,6 +20,7 @@ from app.models import DealObservation, DiscountEvidence, display_name, from_min
 
 CANVAS = (1080, 1080)  # square: promo grid
 POST_CANVAS = (1080, 1350)  # 4:5 vertical: fills ~20% more of the phone screen in the feed
+PHOTO_BOX = (864, 455)  # room for the product photo inside the white card
 NAVY, PANEL, WHITE, MUTED = "#08182F", "#0E2647", "#FFFFFF", "#AFC0D6"
 YELLOW, RED, GREEN = "#FFD21F", "#FF3B3B", "#3DDC84"
 # Background gradients (top, bottom) that rotate per product so the feed doesn't look like one template
@@ -181,6 +182,11 @@ class OfferImageRenderer:
         product = self._load_product_image(product_image_bytes or self._download(deal.image_url))
         if product is None and require_image:
             raise MissingProductImage("La oferta no tiene foto del producto; no se publica.")
+        if product is not None and require_image:
+            from app.quality import photo_issue
+
+            if issue := photo_issue(product.size, PHOTO_BOX):
+                raise MissingProductImage(f"{issue[0].upper()}{issue[1:]}; no se publica.")
 
         # Header: store chip + tagline
         store = store_name(deal.source).upper()
@@ -200,7 +206,7 @@ class OfferImageRenderer:
             self._draw_follow_cta(canvas, draw, (card[0] + 30, card[1] + 30, card[2] - 30, card[3] - 30))
         else:
             # leave the bottom strip of the card for the "verified" stamp
-            product = ImageOps.contain(product, (card[2] - card[0] - 120, card[3] - card[1] - 130), Image.Resampling.LANCZOS)
+            product = ImageOps.contain(product, PHOTO_BOX, Image.Resampling.LANCZOS)
             cx, cy = (card[0] + card[2]) // 2, (card[1] + card[3]) // 2 - 28
             canvas.paste(product, (cx - product.width // 2, cy - product.height // 2), product if product.mode == "RGBA" else None)
         self._stamp(canvas, draw, deal, card)

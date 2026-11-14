@@ -41,7 +41,7 @@ class RecordingSession:
 
 def _png() -> bytes:
     buffer = BytesIO()
-    Image.new("RGB", (40, 40), "red").save(buffer, format="PNG")
+    Image.new("RGB", (400, 400), "red").save(buffer, format="PNG")
     return buffer.getvalue()
 
 

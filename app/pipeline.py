@@ -14,6 +14,7 @@ from app.image_renderer import MissingProductImage, OfferImageRenderer
 from app.reel_renderer import ReelRenderer
 from app.models import Candidate, DiscountEvidence, utc_now, variant_key
 from app.publishers.facebook import FacebookPublisher, FacebookPublishError
+from app.quality import ensure_recommendable, names_of
 from app.publishers.telegram import TelegramPublisher, deal_caption, top_caption
 from app.rates import ExchangeRateProvider
 from app.scoring import qualifies, score, validate_observation
@@ -113,6 +114,16 @@ class OfferPipeline:
             raise ValueError(f"Claude detuvo la publicación: {problem}")
         return replace(candidate, deal=replace(candidate.deal, ai=merge_copy(candidate.deal.ai, copy)))
 
+    def _review_reel(self, candidate: Candidate, rate) -> None:
+        """Claude checks the reel's own screens (opener, details, price, call to action), not only the photo."""
+        if not self.ai:
+            return
+        frames = self.reel_renderer.review_frames(candidate.deal, usd_cop_rate=rate,
+                                                  link_in_comment=self.settings.link_in_comment)
+        approved, problem = self.ai.review_frames(frames, candidate.deal)
+        if not approved and self.settings.ai_review:
+            raise ValueError(f"Claude detuvo el reel: {problem}")
+
     def render(self, candidate: Candidate, require_image: bool = False) -> tuple[Path, str]:
         rate = self.rate_provider.usd_to_cop()
         image = self.renderer.render(candidate.deal, candidate.id, usd_cop_rate=rate, require_image=require_image)
@@ -156,15 +167,17 @@ class OfferPipeline:
             )
             if as_reel:
                 candidate = self._analyze(candidate)
-                self._load_media()
                 rate = self.rate_provider.usd_to_cop()
+                caption = facebook_copy(
+                    candidate.deal, rate, self.settings.affiliate_disclosure, self.settings.link_in_comment
+                ) + " #reels"
+                ensure_recommendable(caption, names_of([candidate.deal]))
+                self._review_reel(candidate, rate)
+                self._load_media()
                 video = self.reel_renderer.render_reel(
                     candidate.deal, f"reel_{candidate.id}", usd_cop_rate=rate,
                     link_in_comment=self.settings.link_in_comment,
                 )
-                caption = facebook_copy(
-                    candidate.deal, rate, self.settings.affiliate_disclosure, self.settings.link_in_comment
-                ) + " #reels"
                 post_id = publisher.publish_reel(video, caption)
             else:
                 rate = self.rate_provider.usd_to_cop()
@@ -173,6 +186,7 @@ class OfferPipeline:
                 caption = facebook_copy(
                     candidate.deal, rate, self.settings.affiliate_disclosure, self.settings.link_in_comment
                 )
+                ensure_recommendable(caption, names_of([candidate.deal]))
                 post_id = publisher.publish_photo(image, caption)
         except FacebookPublishError as exc:
             self.database.record_publish_error(candidate_id, str(exc), exc.ambiguous)
@@ -252,7 +266,9 @@ class OfferPipeline:
         publisher = publisher or FacebookPublisher(
             self.settings.fb_page_id, self.settings.fb_page_token, self.settings.meta_graph_api_version
         )
-        post_id = publisher.publish_carousel(images, top_copy(items, rate, self.settings.link_in_comment))
+        caption = top_copy(items, rate, self.settings.link_in_comment)
+        ensure_recommendable(caption, names_of([c.deal for c in items]))
+        post_id = publisher.publish_carousel(images, caption)
         self.database.record_top([c.id for c in items], post_id)
         if self.settings.link_in_comment:
             try:

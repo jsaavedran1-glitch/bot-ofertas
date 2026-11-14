@@ -10,6 +10,7 @@ from PIL import Image, ImageDraw, ImageOps
 
 from app.image_renderer import GREEN, MUTED, NAVY, PANEL, RED, THEMES, WHITE, YELLOW, MissingProductImage, OfferImageRenderer, gradient
 from app.models import DealObservation, DiscountEvidence, display_name, from_minor, money, rating_text, store_name, to_minor
+from app.quality import photo_issue
 from app.scoring import price_cop
 
 # 16 s: Meta recommends reels of 15-90 s (with sound); 9 s reels got almost no distribution.
@@ -103,6 +104,18 @@ def story_moment(phases=PHASES) -> float:
     """Inside the first price phase, once the new price and the savings are on screen."""
     start = next(p[0] for p in phases if p[2] == "price")
     return start + 2.9
+
+
+def review_moments(phases=PHASES) -> list[float]:
+    """One settled moment per kind of screen (opener, details, price, call to action), for the content review."""
+    seen, moments = set(), []
+    for start, end, kind in phases:
+        if kind not in seen:
+            seen.add(kind)
+            moments.append(story_moment(phases) if kind == "price" else round(start + 0.7 * (end - start), 2))
+    return moments
+
+
 FADE = 0.25
 STORY_MOMENT = story_moment(PHASES)  # classic order: before price struck through, new price and savings shown
 
@@ -127,15 +140,16 @@ def _pop(t: float, start: float, length: float = 0.35, lo: float = 0.6) -> float
 
 
 def reel_hook(deal: DealObservation, price: str, saved: str | None = None) -> tuple[str, list[str]]:
-    """Opener for the first 2 seconds; a true "lowest in 30 days" wins, otherwise rotated per product."""
+    """Opener for the first 2 seconds; a true "lowest in 30 days" wins, otherwise rotated per product.
+    Every option states a fact (price, discount, store): Meta doesn't recommend clickbait that withholds it."""
     if deal.lowest_30d:
         return "🔻", ["PRECIO MÁS BAJO", "EN 30 DÍAS"]
     pct = deal.discount_pct
     options = [
-        ("🚨", ["¡PRECIO DE", "LOCURA!"]),
+        ("🛒", ["BAJÓ DE PRECIO", f"EN {store_name(deal.source).upper()}"]),
         ("🤔", ["¿PAGARÍAS", f"{price} POR ESTO?"]),
         ("🔥", ["¡BAJÓ", f"{pct}%!"]),
-        ("👀", ["NO LO COMPRES", "SIN VER ESTO"]),
+        ("✅", ["PRECIO", "VERIFICADO HOY"]),
         ("⏰", ["OFERTA DE HOY", f"-{pct}%"]),
     ]
     if saved:
@@ -181,6 +195,12 @@ class ReelRenderer(OfferImageRenderer):
         base, photo, texts = self._prepare(deal, usd_cop_rate, product_image_bytes, link_in_comment)
         return self._frame(base, photo, texts, t)
 
+    def review_frames(self, deal: DealObservation, usd_cop_rate: Decimal | None = None,
+                      link_in_comment: bool = False) -> list[Image.Image]:
+        """The reel's distinct screens, for Claude to check before the video is published."""
+        base, photo, texts = self._prepare(deal, usd_cop_rate, None, link_in_comment)
+        return [self._frame(base, photo, texts, t) for t in review_moments(texts["phases"])]
+
     def render_story(
         self,
         deal: DealObservation,
@@ -224,6 +244,9 @@ class ReelRenderer(OfferImageRenderer):
         product = self._load_product_image(product_image_bytes or self._download(deal.image_url))
         if product is None:
             raise MissingProductImage("La oferta no tiene foto del producto; no se genera el video ni la historia.")
+        box = (CARD[2] - CARD[0] - 80, CARD[3] - CARD[1] - 150)
+        if issue := photo_issue(product.size, box):
+            raise MissingProductImage(f"{issue[0].upper()}{issue[1:]}; no se genera el video ni la historia.")
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
         in_cop = deal.currency == "USD" and bool(usd_cop_rate)
@@ -242,7 +265,7 @@ class ReelRenderer(OfferImageRenderer):
         big = official and saved and (price_cop(deal, usd_cop_rate) or 0) >= BIG_TICKET_COP
         emoji, hook_lines = reel_hook(deal, shown(now), saved if big else None)
 
-        photo = ImageOps.contain(product, (CARD[2] - CARD[0] - 80, CARD[3] - CARD[1] - 150), Image.Resampling.LANCZOS)
+        photo = ImageOps.contain(product, box, Image.Resampling.LANCZOS)
         texts = {
             "hook": self._hook_layer(emoji, hook_lines),
             "burst": self._burst_layer(f"-{deal.discount_pct}%"),

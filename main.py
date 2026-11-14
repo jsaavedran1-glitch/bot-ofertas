@@ -20,6 +20,7 @@ from app.models import DealObservation, DiscountEvidence, store_name, to_minor, 
 from app.pipeline import OfferPipeline
 from app.reel_renderer import ReelRenderer
 from app.publishers.facebook import FacebookPublisher, FacebookPublishError
+from app.quality import ensure_recommendable, names_of
 from app.sources import PartnerFeedSource
 from app.sources.amazon_rss import AmazonRssSource
 from app.sources.colombia_stores import colombia_store_sources
@@ -83,7 +84,9 @@ def publish_promo(settings: Settings, database: Database, pipeline: OfferPipelin
         return False
     image = PromoRenderer(settings.generated_dir).render_promo(promo, f"promo_{promo.key.replace(':', '_')}")
     publisher = FacebookPublisher(settings.fb_page_id, settings.fb_page_token, settings.meta_graph_api_version)
-    post_id = publisher.publish_photo(image, promo_copy(promo, link_in_comment=settings.link_in_comment))
+    caption = promo_copy(promo, link_in_comment=settings.link_in_comment)
+    ensure_recommendable(caption, names_of(promo.deals))
+    post_id = publisher.publish_photo(image, caption)
     database.record_promo(promo.key, post_id)
     if settings.link_in_comment:
         try:
@@ -130,7 +133,9 @@ def publish_content(settings: Settings, database: Database, pipeline: OfferPipel
     name = f"{post.kind}_{hashlib.sha1(post.key.encode()).hexdigest()[:12]}"
     image = ContentRenderer(settings.generated_dir).render_content(post, name)
     publisher = publisher or FacebookPublisher(settings.fb_page_id, settings.fb_page_token, settings.meta_graph_api_version)
-    post_id = publisher.publish_photo(image, content_caption(post, settings.link_in_comment))
+    caption = content_caption(post, settings.link_in_comment)
+    ensure_recommendable(caption)
+    post_id = publisher.publish_photo(image, caption)
     database.record_content(post.kind, post.key, post_id)
     if settings.link_in_comment:
         try:
@@ -318,7 +323,7 @@ def publish_slot(settings: Settings, database: Database, pipeline: OfferPipeline
         wait_turn()
         try:
             published += publish_promo(settings, database, pipeline)
-        except (FacebookPublishError, OSError) as exc:
+        except (FacebookPublishError, OSError, ValueError) as exc:
             print(f"Falló la promo del día: {exc}", file=sys.stderr)
     if published < due and now.hour in settings.top_hours and not database.top_published_today():
         wait_turn()
@@ -329,7 +334,7 @@ def publish_slot(settings: Settings, database: Database, pipeline: OfferPipeline
                 published += 1
             else:
                 print("Top 5: no hay suficientes ofertas válidas; se publica un post normal.")
-        except (FacebookPublishError, OSError) as exc:
+        except (FacebookPublishError, OSError, ValueError) as exc:
             print(f"Falló el top 5: {exc}", file=sys.stderr)
     if published < due and now.hour in settings.content_hours and not database.content_published_this_hour():
         wait_turn()
@@ -495,6 +500,7 @@ def publish_coupons(settings: Settings, database: Database, key: str | None = No
     from app.coupons import CouponRenderer, load_coupon_post
 
     post = load_coupon_post()
+    ensure_recommendable(post.caption)
     image = CouponRenderer(settings.generated_dir).render_coupons(post)
     print(f"Imagen: {image.resolve()}\n{post.caption}\n")
     if dry_run:
