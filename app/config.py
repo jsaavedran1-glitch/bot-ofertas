@@ -86,7 +86,7 @@ class Settings:
     anthropic_api_key: str = ""
     ai_enabled: bool = True
     ai_review: bool = True
-    amazon_max_per_day: int = 2  # AMAZON_MAX_PER_DAY: Amazon/DealNews posts (photos and reels) per Bogotá day
+    amazon_max_per_day: int = 8  # AMAZON_MAX_PER_DAY: Amazon/DealNews posts (photos and reels) per Bogotá day
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -153,5 +153,5 @@ class Settings:
             anthropic_api_key=os.getenv("ANTHROPIC_API_KEY", "").strip(),
             ai_review=_as_bool(os.getenv("AI_REVIEW"), True),
             ai_enabled=_as_bool(os.getenv("AI_ENABLED"), True),
-            amazon_max_per_day=int(os.getenv("AMAZON_MAX_PER_DAY", "2")),
+            amazon_max_per_day=int(os.getenv("AMAZON_MAX_PER_DAY", "8")),
         )
