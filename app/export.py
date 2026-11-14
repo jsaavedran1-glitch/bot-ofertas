@@ -141,7 +141,24 @@ def export_stats(settings, database, days: int = 30, path: Path = Path("generate
     fields = _get(session, f"{base}/{page}", {"fields": "name,followers_count,fan_count", "access_token": token})
     stories = _get(session, f"{base}/{page}/stories", {"since": int(since.timestamp()), "limit": 100, "access_token": token})
 
+    # Raw answers for one shared post and the page, to tell "zero" apart from "not readable with this token"
+    probe_id = next((r["post_id"] for r in posts if (r.get("shares") or 0) > 0), sample_post)
+    diagnostics = {}
+    if probe_id:
+        diagnostics["post_fields"] = _get(session, f"{base}/{probe_id}", {
+            "fields": "reactions.summary(total_count).limit(0),likes.summary(true).limit(0),"
+                      "comments.summary(true).limit(0),shares,is_published,privacy", "access_token": token})
+        diagnostics["post_insights"] = _get(session, f"{base}/{probe_id}/insights", {
+            "metric": "post_media_view,post_total_media_view_unique,post_clicks", "period": "lifetime",
+            "access_token": token})
+    diagnostics["page_insights"] = _get(session, f"{base}/{page}/insights", {
+        "metric": "page_media_view,page_post_engagements,page_follows", "period": "day",
+        "since": int((now - timedelta(days=7)).timestamp()), "until": int(now.timestamp()), "access_token": token})
+    if isinstance(data_stories := stories.get("data"), list) and data_stories:
+        diagnostics["story_insights"] = _get(session, f"{base}/{data_stories[0].get('post_id')}/insights", {
+            "access_token": token})
     data = {
+        "diagnostics": diagnostics,
         "generated_at": now.astimezone(BOGOTA).isoformat(timespec="minutes"), "days": days,
         "page": {k: v for k, v in fields.items() if k != "id"},
         "page_insights_daily": dict(sorted(page_days.items())),
