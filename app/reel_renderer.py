@@ -262,13 +262,16 @@ class ReelRenderer(OfferImageRenderer):
 
     # ---------- static layers ----------
 
-    def _background(self, theme: int = 0) -> Image.Image:
+    def _background(self, theme: int = 0, tint=None) -> Image.Image:
         img = Image.new("RGB", (W, H), NAVY)
-        gradient(ImageDraw.Draw(img), (W, H), theme)
+        gradient(ImageDraw.Draw(img), (W, H), theme, tint)
         return img
 
     def _base(self, deal: DealObservation, theme: int = 0) -> Image.Image:
-        img = self._background(theme)
+        from app.store_colors import luminance, store_color, text_on
+
+        brand = store_color(deal.source, deal.url, self.session)
+        img = self._background(theme, brand)
         draw = ImageDraw.Draw(img)
         # Brand on top (visible full screen; the feed's 4:5 crop starts below it)
         size = 84
@@ -278,13 +281,15 @@ class ReelRenderer(OfferImageRenderer):
         store = store_name(deal.source).upper()
         chip_font = self._fit_font(draw, store, 330, 40, 26)
         chip_w = int(draw.textlength(store, font=chip_font)) + 64
-        draw.rounded_rectangle((CARD[0], HEADER_Y, CARD[0] + chip_w, HEADER_Y + 72), radius=36, fill=WHITE)
-        draw.text((CARD[0] + chip_w // 2, HEADER_Y + 36), store, anchor="mm", font=chip_font, fill=NAVY)
+        draw.rounded_rectangle((CARD[0], HEADER_Y, CARD[0] + chip_w, HEADER_Y + 72), radius=36, fill=brand or WHITE)
+        draw.text((CARD[0] + chip_w // 2, HEADER_Y + 36), store, anchor="mm", font=chip_font, fill=text_on(brand, NAVY, WHITE))
         self._paste_emoji(img, (CARD[0] + chip_w + 22, HEADER_Y + 14), "🔥", 44)
         from app.events import event_tag
 
         draw.text((CARD[0] + chip_w + 76, HEADER_Y + 36), event_tag(), anchor="lm",
                   font=self._font(34, weight="Black"), fill=YELLOW)
+        if brand is not None and luminance(brand) > 0.08:  # frame the product in the store's color
+            draw.rounded_rectangle((CARD[0] - 12, CARD[1] - 12, CARD[2] + 12, CARD[3] + 12), radius=60, fill=brand)
         draw.rounded_rectangle(CARD, radius=48, fill=WHITE)
         font, lines = self._fit_lines(draw, display_name(deal), 900, max_lines=2, start=44, minimum=30)
         y = TITLE_Y

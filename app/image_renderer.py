@@ -32,8 +32,13 @@ THEMES = (
 )
 
 
-def gradient(draw, size: tuple[int, int], theme: int) -> None:
+def gradient(draw, size: tuple[int, int], theme: int, tint: "tuple[int, int, int] | None" = None) -> None:
+    """Dark vertical gradient of the theme, tinted with the store's color when there is one."""
+    from app.store_colors import mix
+
     top, bottom = THEMES[theme % len(THEMES)]
+    if tint is not None:
+        top, bottom = mix(top, tint, 0.16), mix(bottom, tint, 0.26)
     w, h = size
     for y in range(h):
         r = y / h
@@ -166,9 +171,12 @@ class OfferImageRenderer:
         W, H = POST_CANVAS
         canvas = Image.new("RGB", POST_CANVAS, NAVY)
         draw = ImageDraw.Draw(canvas)
+        from app.store_colors import luminance, store_color, text_on
+
         theme, burst_left, radius = photo_variant(deal.external_id)
         burst_left = burst_left and not deal.lowest_30d  # the "lowest in 30 days" ribbon owns the top-left corner
-        gradient(draw, POST_CANVAS, theme)
+        brand = store_color(deal.source, deal.url, self.session)  # the store's own color, from its homepage
+        gradient(draw, POST_CANVAS, theme, brand)
 
         product = self._load_product_image(product_image_bytes or self._download(deal.image_url))
         if product is None and require_image:
@@ -178,13 +186,15 @@ class OfferImageRenderer:
         store = store_name(deal.source).upper()
         chip_font = self._fit_font(draw, store, 420, 40, 26)
         chip_w = int(draw.textlength(store, font=chip_font)) + 64
-        draw.rounded_rectangle((48, 44, 48 + chip_w, 120), radius=38, fill=WHITE)
-        draw.text((48 + chip_w // 2, 82), store, anchor="mm", font=chip_font, fill=NAVY)
+        draw.rounded_rectangle((48, 44, 48 + chip_w, 120), radius=38, fill=brand or WHITE)
+        draw.text((48 + chip_w // 2, 82), store, anchor="mm", font=chip_font, fill=text_on(brand, NAVY, WHITE))
         self._paste_emoji(canvas, (48 + chip_w + 22, 60), "🔥", 44)
         draw.text((48 + chip_w + 76, 82), tag, anchor="lm", font=self._font(34, weight="Black"), fill=YELLOW)
 
-        # Product card
+        # Product card, framed in the store's color
         card = (48, 150, W - 48, 735)
+        if brand is not None and luminance(brand) > 0.08:
+            draw.rounded_rectangle((card[0] - 10, card[1] - 10, card[2] + 10, card[3] + 10), radius=radius + 10, fill=brand)
         draw.rounded_rectangle(card, radius=radius, fill=WHITE)
         if product is None:
             self._draw_follow_cta(canvas, draw, (card[0] + 30, card[1] + 30, card[2] - 30, card[3] - 30))
