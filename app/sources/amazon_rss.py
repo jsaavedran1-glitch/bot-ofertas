@@ -17,6 +17,9 @@ from app.sources.base import DealSource, SourceError
 # ponytail: Amazon deals link to an affiliate-tagged search (no ASIN in the feed); switch to /dp/ASIN once PA-API is available.
 AFFILIATE_TAG = "ojoalprecio10-20"
 MIN_PRICE_USD = 10
+# Above this the "antes" price is almost always a misread (trade-in or bundle values in the description),
+# e.g. a Galaxy S26 FE at -86 % for US$100. Not credible, so not posted.
+MAX_DISCOUNT_PCT = 75
 
 # (feed, title filter): DealNews categories with the most Amazon deals.
 _FEEDS = [
@@ -122,7 +125,7 @@ class AmazonRssSource(DealSource):
         else:
             return None
 
-        if discount_pct < self.min_discount_pct:
+        if discount_pct < self.min_discount_pct or discount_pct > MAX_DISCOUNT_PCT:
             return None
 
         if orig is None or orig <= price:
