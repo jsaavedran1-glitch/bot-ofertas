@@ -38,6 +38,9 @@ class FakeDb:
     def reel_published_this_hour(self):
         return self.reel_done
 
+    def posts_today_from(self, source):
+        return 0
+
 
 class FakePipeline:
     def __init__(self, db, fail=()):

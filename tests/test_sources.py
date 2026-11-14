@@ -121,6 +121,26 @@ class DealNewsSourceTests(unittest.TestCase):
         self.assertIsNone(src._parse_item(self._item("Woot! An Amazon Company", "Refurb Bose Speaker for $9")))
         self.assertIsNone(src._parse_item(self._item("Amazon", "Amazon Haul $1 Flash Sale for Deals under $1")))
 
+    def test_amazon_discount_above_75_percent_is_not_credible(self):
+        import xml.etree.ElementTree as ET
+        from app.sources.amazon_rss import AmazonRssSource
+
+        def item(pct):
+            return ET.fromstring(f"""<item xmlns:dealnews="https://www.dealnews.com/ns/rss/1.0.htm"
+                xmlns:media="http://search.yahoo.com/mrss/">
+              <title>Samsung Galaxy Phone for $100</title>
+              <link>https://www.dealnews.com/Galaxy/22393993.html?iref=rss</link>
+              <description>Now $100, {pct}% off list.</description>
+              <dealnews:retailer>Amazon</dealnews:retailer>
+              <media:content url="https://d.dlnws.com/1/x.jpg?h=125&amp;w=103"/>
+            </item>""")
+
+        src = AmazonRssSource()
+        self.assertIsNone(src._parse_item(item(80)))
+        accepted = src._parse_item(item(70))
+        self.assertIsNotNone(accepted)
+        self.assertAlmostEqual(accepted.discount_pct, 70, delta=1)  # rounding of the derived "antes" price
+
 
 class _Resp:
     def __init__(self, payload):
