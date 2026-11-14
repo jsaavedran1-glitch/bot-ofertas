@@ -443,6 +443,17 @@ class Database:
             row = conn.execute(self._sql("SELECT COUNT(*) AS total FROM publications WHERE local_day=?"), (local_day,)).fetchone()
         return int(row["total"])
 
+    def posts_today_from(self, source: str) -> int:
+        """Today's (Bogotá) own posts of one store's deals: photos and reels, not Top 5 carousel slots."""
+        local_day = utc_now().astimezone(ZoneInfo("America/Bogota")).date().isoformat()
+        sql = self._sql(
+            "SELECT COUNT(*) AS total FROM publications p JOIN candidates c ON c.id=p.candidate_id"
+            " WHERE p.local_day=? AND c.source=? AND p.platform IN ('facebook','facebook_reel')"
+        )
+        with self._connection() as conn:
+            row = conn.execute(sql, (local_day, source)).fetchone()
+        return int(row["total"])
+
     def minutes_since_last_post(self) -> float | None:
         sql = ("SELECT MAX(published_at) AS last FROM (SELECT published_at FROM publications"
                " UNION ALL SELECT published_at FROM promo_publications"
