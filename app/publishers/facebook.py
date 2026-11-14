@@ -29,6 +29,7 @@ class FacebookPublisher:
         self.page_token = page_token
         self.api_version = api_version
         self.session = session or requests.Session()
+        self.last_photo_id = ""
 
     def publish_photo(self, image_path: Path, caption: str) -> str:
         if not image_path.is_file():
@@ -67,7 +68,22 @@ class FacebookPublisher:
         post_id = payload.get("post_id") or payload.get("id") if isinstance(payload, dict) else None
         if not post_id:
             raise FacebookPublishError("Meta respondió sin identificador de publicación.", ambiguous=True)
+        self.last_photo_id = str(payload.get("id") or "")
         return str(post_id)
+
+    def photo_source(self, photo_id: str) -> str:
+        """Public URL (Facebook's CDN, JPEG) of the largest version of an uploaded photo, for Instagram."""
+        try:
+            response = self.session.get(f"https://graph.facebook.com/{self.api_version}/{photo_id}",
+                                        params={"fields": "images"},
+                                        headers={"Authorization": f"Bearer {self.page_token}"}, timeout=(8, 20))
+            images = (response.json() if response.ok else {}).get("images") or []
+        except (requests.RequestException, ValueError) as exc:
+            raise FacebookPublishError("No se pudo leer la foto publicada.") from exc
+        best = max(images, key=lambda i: i.get("width", 0) * i.get("height", 0), default={})
+        if not best.get("source"):
+            raise FacebookPublishError("Meta no devolvió la URL de la foto publicada.")
+        return str(best["source"])
 
     def comment(self, post_id: str, message: str) -> None:
         url = f"https://graph.facebook.com/{self.api_version}/{post_id}/comments"

@@ -294,6 +294,11 @@ class Database:
             out.append((when, int(row["price_minor"])))
         return out
 
+    def first_observation(self) -> str:
+        with self._connection() as conn:
+            row = conn.execute("SELECT MIN(observed_at) AS first FROM price_observations").fetchone()
+        return str(row["first"]) if row and row["first"] else "—"
+
     def history_published_this_hour(self) -> bool:
         local = utc_now().astimezone(ZoneInfo("America/Bogota"))
         start = local.replace(minute=0, second=0, microsecond=0).astimezone(timezone.utc).isoformat()

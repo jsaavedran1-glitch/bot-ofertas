@@ -68,6 +68,9 @@ jobs:
       # buen precio o "antes" inflado). Reemplaza una oferta de esa hora; si ninguna tiene historial suficiente,
       # sale una oferta normal. Contenido original, el que Meta recomienda.
       HISTORY_HOURS: "11,16,20"
+      # Copia en la cuenta de Instagram vinculada a la página (reels y "¿Descuento real?"). Se activa sola cuando
+      # la cuenta esté vinculada y el token tenga instagram_basic + instagram_content_publish; si no, se omite.
+      INSTAGRAM_KINDS: "reel,historial"
       # Tope de seguridad diario (la suma de arriba es 63; con EVENT_BOOST, ~82)
       MAX_POSTS_PER_DAY: "90"
       # Black Friday (27-29 nov) y Cyber Monday (30 nov): 30 % más publicaciones por hora, etiqueta y hashtags

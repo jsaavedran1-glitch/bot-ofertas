@@ -524,6 +524,15 @@ def history_command(settings: Settings, database: Database, pipeline: OfferPipel
           f"({kinds.get('real', 0)} reales, {kinds.get('bueno', 0)} buen precio, {kinds.get('inflado', 0)} infladas).")
     for c, h, v in options[:10]:
         print(f"  {v.kind:8} {store_name(c.deal.source):14} {len(h.points) - 1:>2} días · {c.deal.title[:60]}")
+    # Why the others don't qualify: how many days of scans each fresh COP deal has
+    max_age = timedelta(hours=settings.candidate_max_age_hours)
+    fresh = [c for c in candidates if c.deal.currency == "COP" and datetime.now(timezone.utc) - c.deal.observed_at <= max_age]
+    spread = Counter()
+    for c in fresh:
+        days = {when.date() for when, _ in database.price_series(c.deal)}
+        spread["0-4" if len(days) < 5 else "5-9" if len(days) < 10 else "10+"] += 1
+    print(f"  Frescas en pesos: {len(fresh)} · días con datos: {dict(spread)} · primer escaneo guardado: "
+          f"{database.first_observation()}")
     result = pipeline.publish_history(candidates, dry_run=dry_run)
     if result is None:
         print("Ninguna oferta con historial suficiente para publicar.")

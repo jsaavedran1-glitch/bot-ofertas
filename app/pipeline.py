@@ -14,6 +14,7 @@ from app.image_renderer import MissingProductImage, OfferImageRenderer
 from app.reel_renderer import ReelRenderer
 from app.models import Candidate, DiscountEvidence, utc_now, variant_key
 from app.publishers.facebook import FacebookPublisher, FacebookPublishError
+from app.publishers.instagram import InstagramPublisher, InstagramPublishError
 from app.quality import ensure_recommendable, names_of
 from app.publishers.telegram import TelegramPublisher, deal_caption, top_caption
 from app.rates import ExchangeRateProvider
@@ -114,6 +115,33 @@ class OfferPipeline:
             raise ValueError(f"Claude detuvo la publicación: {problem}")
         return replace(candidate, deal=replace(candidate.deal, ai=merge_copy(candidate.deal.ai, copy)))
 
+    def _instagram(self) -> InstagramPublisher | None:
+        """The linked Instagram account, looked up once per run; None when cross-posting is off or not set up."""
+        if not self.settings.instagram_kinds:
+            return None
+        if not hasattr(self, "_ig"):
+            self._ig = InstagramPublisher.for_page(
+                self.settings.fb_page_id, self.settings.fb_page_token, self.settings.meta_graph_api_version)
+            if self._ig is None:
+                print("Instagram: el token no ve una cuenta de Instagram vinculada a la página; no se publica allí.")
+        return self._ig
+
+    def _to_instagram(self, kind: str, publisher: FacebookPublisher, caption: str, video: Path | None = None) -> None:
+        """Bonus copy on Instagram of what just went out on Facebook (INSTAGRAM_KINDS); failures only warn."""
+        if kind not in self.settings.instagram_kinds:
+            return
+        instagram = self._instagram()
+        if instagram is None:
+            return
+        try:
+            if video is not None:
+                media_id = instagram.publish_reel(video, caption)
+            else:
+                media_id = instagram.publish_image(publisher.photo_source(publisher.last_photo_id), caption)
+            print(f"Instagram ({kind}): {media_id}")
+        except (InstagramPublishError, FacebookPublishError, OSError) as exc:
+            print(f"Advertencia Instagram: {exc}", file=sys.stderr)
+
     def _review_reel(self, candidate: Candidate, rate) -> None:
         """Claude checks the reel's own screens (opener, details, price, call to action), not only the photo."""
         if not self.ai:
@@ -198,6 +226,10 @@ class OfferPipeline:
             self.database.record_publish_error(candidate_id, "Fallo local antes de publicar.", False)
             raise
         self.database.record_publication(candidate_id, post_id, "facebook_reel" if as_reel else "facebook")
+        if as_reel:
+            self._to_instagram("reel", publisher, caption, video=video)
+        else:
+            self._to_instagram("oferta", publisher, caption)
         if self.settings.link_in_comment:
             # Reels are still processing right after upload and may reject comments for a few seconds.
             attempts = 4 if as_reel else 1
@@ -350,6 +382,7 @@ class OfferPipeline:
                 print(f"Historial {c.id} descartado: {exc}", file=sys.stderr)
                 continue
             self.database.record_publication(c.id, post_id, "facebook_historial")
+            self._to_instagram("historial", publisher, caption)
             if self.settings.link_in_comment:
                 try:
                     publisher.comment(post_id, f"👉 Aquí la oferta: {c.deal.url}")

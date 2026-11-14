@@ -75,6 +75,7 @@ class Settings:
     min_minutes_between_posts: int = 0
     content_hours: frozenset[int] = frozenset()  # CONTENT_HOURS: the hour's first post is a tip or a news item
     history_hours: frozenset[int] = frozenset()  # HISTORY_HOURS: one "¿Descuento real?" price-history post
+    instagram_kinds: frozenset[str] = frozenset()  # INSTAGRAM_KINDS: what is also posted to the linked Instagram
     hourly_posts: tuple[int, ...] = ()
     awin_adidas_feed_url: str = ""  # AWIN_ADIDAS_FEED_URL (secret: it carries the Awin API key)
     stories_per_hour: int = 1  # STORIES_PER_HOUR: only the hour's first N posts also go to the story
@@ -145,6 +146,7 @@ class Settings:
             metrics_hours=frozenset(int(h) for h in os.getenv("METRICS_HOURS", "7,13,23").split(",") if h.strip()),
             content_hours=frozenset(int(h) for h in os.getenv("CONTENT_HOURS", "").split(",") if h.strip()),
             history_hours=frozenset(int(h) for h in os.getenv("HISTORY_HOURS", "").split(",") if h.strip()),
+            instagram_kinds=frozenset(k.strip() for k in os.getenv("INSTAGRAM_KINDS", "").split(",") if k.strip()),
             anthropic_api_key=os.getenv("ANTHROPIC_API_KEY", "").strip(),
             ai_review=_as_bool(os.getenv("AI_REVIEW"), True),
             ai_enabled=_as_bool(os.getenv("AI_ENABLED"), True),
