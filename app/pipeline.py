@@ -323,6 +323,20 @@ class OfferPipeline:
                 print(f"Advertencia Telegram top 5: {exc}", file=sys.stderr)
         return post_id, items
 
+    def track_prices(self, limit: int) -> int:
+        """Re-check today's price of up to `limit` recent deals (store lookups, not listings) so every product
+        gets one observation a day, discounted or not. That continuous line is what "¿Descuento real?" plots."""
+        checked = 0
+        for c in self.database.products_to_track(limit):
+            fresh = self._revalidate(c)
+            if fresh is None or fresh.currency != c.deal.currency:
+                continue
+            fresh = replace(fresh, observed_at=utc_now())
+            self.database.upsert_product(fresh)
+            self.database.record_observation(fresh)
+            checked += 1
+        return checked
+
     def history_options(self, candidates: list[Candidate]) -> list[tuple[Candidate, object, object]]:
         """(candidate, history, verdict) for fresh COP deals whose own price history says something, best first:
         the strongest real discounts and the most inflated "antes" prices."""

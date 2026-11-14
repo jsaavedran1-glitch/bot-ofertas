@@ -294,6 +294,28 @@ class Database:
             out.append((when, int(row["price_minor"])))
         return out
 
+    def products_to_track(self, limit: int, days: int = 30) -> list[Candidate]:
+        """Deals (in pesos) found in the last `days` days whose price hasn't been checked yet today (Bogotá),
+        best score first, one per product: the daily re-check that builds a continuous price history."""
+        local = utc_now().astimezone(ZoneInfo("America/Bogota"))
+        today = local.replace(hour=0, minute=0, second=0, microsecond=0).astimezone(timezone.utc).isoformat()
+        since = (utc_now() - timedelta(days=days)).isoformat()
+        sql = self._sql(
+            "SELECT c.* FROM candidates c WHERE c.created_at>=? AND c.currency='COP' AND NOT EXISTS ("
+            " SELECT 1 FROM price_observations o WHERE o.source=c.source AND o.external_id=c.external_id"
+            " AND o.observed_at>=?) ORDER BY c.score DESC, c.created_at DESC LIMIT ?"
+        )
+        with self._connection() as conn:
+            rows = conn.execute(sql, (since, today, limit * 3)).fetchall()
+        out, seen = [], set()
+        for row in rows:
+            candidate = self._candidate(row)
+            key = (row["source"], row["external_id"])
+            if candidate and key not in seen:
+                seen.add(key)
+                out.append(candidate)
+        return out[:limit]
+
     def first_observation(self) -> str:
         with self._connection() as conn:
             row = conn.execute("SELECT MIN(observed_at) AS first FROM price_observations").fetchone()

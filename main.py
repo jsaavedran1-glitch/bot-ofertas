@@ -637,6 +637,11 @@ def main() -> int:
                 expired = database.expire_stale(settings.candidate_max_age_hours)
                 if expired:
                     print(f"Vencidas: {expired}")
+                if settings.track_per_run:
+                    try:
+                        print(f"Seguimiento de precios: {pipeline.track_prices(settings.track_per_run)} productos revisados")
+                    except Exception as exc:  # the history is a bonus: never block publishing
+                        print(f"Advertencia seguimiento de precios: {exc}", file=sys.stderr)
                 metrics_slot(settings, database, datetime.now(ZoneInfo("America/Bogota")), pipeline)
                 hour = datetime.now(ZoneInfo("America/Bogota")).hour
                 if hour not in settings.publish_hours:

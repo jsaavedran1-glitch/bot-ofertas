@@ -29,7 +29,8 @@ STEADY = [340_000, 339_000, None, 345_000, 340_000, 338_000, None, 340_000, 342_
 class VerdictTests(unittest.TestCase):
     def test_too_little_history_says_nothing(self):
         self.assertIsNone(build_history(rows([340_000] * 5), deal(300_000, 500_000)))
-        self.assertIsNone(build_history(rows([340_000] * 12, days_back=11), deal(300_000, 500_000)))
+        self.assertIsNone(build_history(rows([340_000] * 6, days_back=6), deal(300_000, 500_000)))
+        self.assertIsNotNone(build_history(rows([340_000] * 7, days_back=7), deal(300_000, 500_000)))
 
     def test_inflated_antes(self):
         d = deal(339_900, 599_900)
@@ -123,3 +124,27 @@ class PipelineTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TrackingTests(unittest.TestCase):
+    def test_recent_deals_get_one_price_check_a_day(self):
+        from app.database import Database
+        from app.pipeline import OfferPipeline
+        from tests.helpers import settings_for
+        from tests.test_publisher_pipeline import FixedRate, PhotoRenderer, SameSource
+
+        with tempfile.TemporaryDirectory() as directory:
+            settings = settings_for(directory)
+            db = Database(settings.database_url)
+            db.initialize()
+            d = DealObservation(source="test", external_id="T1", title="Licuadora Oster", price_minor=199_900,
+                                original_price_minor=299_900, evidence=DiscountEvidence.OFFICIAL_ORIGINAL,
+                                currency="COP", url="https://example.com/t1", image_url="https://example.com/t1.png",
+                                observed_at=datetime.now(timezone.utc) - timedelta(days=2))
+            db.record_observation(d)
+            db.create_candidate(d, 30)
+            pipeline = OfferPipeline(settings, db, [SameSource(d)], rate_provider=FixedRate(),
+                                     renderer=PhotoRenderer(settings.generated_dir))
+            self.assertEqual(pipeline.track_prices(10), 1)
+            self.assertEqual(len(db.price_series(d)), 2)
+            self.assertEqual(pipeline.track_prices(10), 0)  # already checked today

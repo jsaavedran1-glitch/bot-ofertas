@@ -21,7 +21,7 @@ from app.models import DealObservation, DiscountEvidence, display_name, money, s
 
 BOGOTA = ZoneInfo("America/Bogota")
 DAYS = 30
-MIN_DAYS, MIN_SPAN = 10, 14  # observed on 10+ different days spread over 2+ weeks, or the chart says too little
+MIN_DAYS, MIN_SPAN = 7, 7  # observed on 7+ different days spread over a week or more, or the chart says too little
 REAL_BELOW_USUAL = 0.90  # "real": the lowest we've seen and 10%+ under the usual price
 GOOD_BELOW_USUAL = 0.90  # "good": 10%+ under the usual price
 INFLATED_ABOVE_SEEN = 1.05  # the store's "antes" is 5%+ above anything we saw
