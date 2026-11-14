@@ -124,6 +124,20 @@ jobs:
             *) echo "Modo no válido: $REQUESTED_MODE"; exit 2 ;;
           esac
 
+      - name: Mostrar exportación de estadísticas
+        if: success() && hashFiles('generated/estadisticas.json') != ''
+        # Una línea JSON por bloque y por publicación, con el prefijo EXP, para leerla desde el registro
+        run: |
+          python -c "
+          import json
+          d = json.load(open('generated/estadisticas.json', encoding='utf-8'))
+          for k, v in d.items():
+              if k == 'posts':
+                  for p in v: print('EXP\tpost\t' + json.dumps(p, ensure_ascii=False, default=str))
+              else:
+                  print('EXP\t' + k + '\t' + json.dumps(v, ensure_ascii=False, default=str))
+          "
+
       - name: Guardar exportación de estadísticas
         if: success() && hashFiles('generated/estadisticas.json') != ''
         uses: actions/upload-artifact@v4
