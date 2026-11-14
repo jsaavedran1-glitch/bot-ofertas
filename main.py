@@ -56,10 +56,18 @@ PUBLISH_PATTERN = (
 REEL_SOURCES = {"amazon", "exito", "alkosto", "ktronix", "falabella", "nike", "tennis", "adidas"}
 
 
-def publish_queues(database: Database, as_reel: bool = False, cooldown_days: int = 7) -> list[list[str]]:
+def capped_sources(settings: Settings, database: Database) -> frozenset[str]:
+    """Stores that already hit their daily cap: Amazon/DealNews after AMAZON_MAX_PER_DAY posts."""
+    if database.posts_today_from("amazon") >= settings.amazon_max_per_day:
+        return frozenset({"amazon"})
+    return frozenset()
+
+
+def publish_queues(database: Database, as_reel: bool = False, cooldown_days: int = 7,
+                   skip: frozenset[str] = frozenset()) -> list[list[str]]:
     """Approved candidates grouped by source, ordered by today's position in PUBLISH_PATTERN.
     One candidate per product: other colours and the same item in another store are left out, as are
-    products posted in the last `cooldown_days` days."""
+    products posted in the last `cooldown_days` days and stores in `skip` (daily cap reached)."""
     seen = database.published_variant_keys(cooldown_days)
     by_source: dict[str, list[str]] = {}
     for c in database.list_candidates(status="approved"):  # best score first: the best variant wins
@@ -71,7 +79,8 @@ def publish_queues(database: Database, as_reel: bool = False, cooldown_days: int
     start = database.posts_today() % len(PUBLISH_PATTERN)
     order: list[str] = []
     for source in PUBLISH_PATTERN[start:] + PUBLISH_PATTERN[:start]:
-        if source in by_source and source not in order and (not as_reel or source in REEL_SOURCES):
+        if (source in by_source and source not in order and source not in skip
+                and (not as_reel or source in REEL_SOURCES)):
             order.append(source)
     return [by_source[s] for s in order]
 
@@ -375,9 +384,10 @@ def publish_slot(settings: Settings, database: Database, pipeline: OfferPipeline
     while published < due and len(tried) < due * 4:
         as_reel = (now.hour in settings.reel_hours and not reel_failed
                    and not database.reel_published_this_hour())
-        queues = publish_queues(database, as_reel, settings.repost_cooldown_days)
+        skip = capped_sources(settings, database)
+        queues = publish_queues(database, as_reel, settings.repost_cooldown_days, skip)
         if as_reel and not queues:
-            as_reel, queues = False, publish_queues(database, False, settings.repost_cooldown_days)
+            as_reel, queues = False, publish_queues(database, False, settings.repost_cooldown_days, skip)
         # Round-robin across stores, skipping deals that already failed in this run.
         order = [cid for row in zip_longest(*queues) for cid in row if cid and cid not in tried]
         if not order:
