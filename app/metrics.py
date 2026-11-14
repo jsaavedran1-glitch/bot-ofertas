@@ -17,10 +17,11 @@ BOGOTA = ZoneInfo("America/Bogota")
 FIELDS = ("created_time,attachments{target{id}},reactions.summary(total_count).limit(0),"
           "comments.limit(50){from{id}},shares")
 KIND_NAMES = {"oferta": "Oferta (foto)", "reel": "Reel", "promo": "Promo del día", "top5": "Top 5",
-              "dato": "Dato útil", "noticia": "Noticia", "evento": "Cuenta regresiva"}
+              "dato": "Dato útil", "noticia": "Noticia", "evento": "Cuenta regresiva", "cupones": "Cupones"}
 PLURALS = {"oferta": ("oferta con foto", "ofertas con foto"), "reel": ("reel", "reels"),
            "promo": ("promo del día", "promos del día"), "top5": ("Top 5", "Top 5"), "dato": ("dato útil", "datos útiles"),
-           "noticia": ("noticia", "noticias"), "evento": ("cuenta regresiva", "cuentas regresivas")}
+           "noticia": ("noticia", "noticias"), "evento": ("cuenta regresiva", "cuentas regresivas"),
+           "cupones": ("publicación de cupones", "publicaciones de cupones")}
 BANDS = ((0, 9, "antes de 9 h"), (9, 12, "9–12 h"), (12, 17, "12–17 h"), (17, 20, "17–20 h"), (20, 24, "20–24 h"))
 
 

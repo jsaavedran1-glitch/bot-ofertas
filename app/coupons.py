@@ -3,7 +3,9 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
+from datetime import datetime, timedelta
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from PIL import Image, ImageDraw
 
@@ -11,6 +13,9 @@ from app.image_renderer import MUTED, NAVY, POST_CANVAS, RED, WHITE, YELLOW, Off
 
 COUPONS_PATH = Path(__file__).resolve().parent.parent / "assets" / "content" / "cupones.json"
 MAX_COUPONS = 5
+# A scheduled repeat still goes out if the run at its time failed, but not once it is this late.
+SCHEDULE_GRACE = timedelta(hours=3)
+BOGOTA = ZoneInfo("America/Bogota")
 
 
 @dataclass(frozen=True)
@@ -28,6 +33,17 @@ class CouponPost:
     coupons: tuple[Coupon, ...]
     caption: str
     note: str = ""
+    schedule: tuple[str, ...] = ()  # Bogotá times "YYYY-MM-DD HH:MM" to (re)publish it in the automatic runs
+
+    def due_slot(self, now: datetime, published_keys: set[str]) -> str | None:
+        """Content key of the scheduled time that is due now and not yet published, if any."""
+        local = now.astimezone(BOGOTA)
+        for when in self.schedule:
+            at = datetime.strptime(when, "%Y-%m-%d %H:%M").replace(tzinfo=BOGOTA)
+            key = f"{self.id}@{when}"
+            if at <= local < at + SCHEDULE_GRACE and key not in published_keys:
+                return key
+        return None
 
 
 def load_coupon_post(path: Path = COUPONS_PATH) -> CouponPost:
@@ -37,8 +53,11 @@ def load_coupon_post(path: Path = COUPONS_PATH) -> CouponPost:
         raise ValueError(f"El archivo de cupones debe tener entre 1 y {MAX_COUPONS} cupones.")
     if not data.get("caption", "").strip():
         raise ValueError("Falta el texto (caption) de la publicación de cupones.")
+    schedule = tuple(data.get("schedule", ()))
+    for when in schedule:
+        datetime.strptime(when, "%Y-%m-%d %H:%M")  # fail loudly on a malformed time
     return CouponPost(id=data["id"], store=data["store"], coupons=coupons,
-                      caption=data["caption"].strip(), note=data.get("note", ""))
+                      caption=data["caption"].strip(), note=data.get("note", ""), schedule=schedule)
 
 
 class CouponRenderer(OfferImageRenderer):

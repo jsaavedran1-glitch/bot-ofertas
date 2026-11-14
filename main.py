@@ -112,7 +112,8 @@ def publish_content(settings: Settings, database: Database, pipeline: OfferPipel
                     feeds: NewsFeeds | None = None, tips=None, publisher: FacebookPublisher | None = None) -> bool:
     """A "Dato útil" or a "Noticia", alternating (each falls back to the other). True when one went out."""
     history = database.content_history()
-    order = ("noticia", "dato") if history and history[-1][0] == "dato" else ("dato", "noticia")
+    last = [k for k, _, _ in history if k in {"dato", "noticia"}]
+    order = ("noticia", "dato") if last and last[-1] == "dato" else ("dato", "noticia")
     post = None
     for kind in order:
         if kind == "dato":
@@ -288,6 +289,8 @@ def publish_slot(settings: Settings, database: Database, pipeline: OfferPipeline
     """Publish what this run owes: the day's promo or Top 5 when their hour comes, then deals (a reel first in
     reel hours), spaced out instead of all at once. Returns how many posts went out."""
     now = now or datetime.now(ZoneInfo("America/Bogota"))
+    if scheduled_coupons(settings, database, now):
+        print("Cupones programados publicados.")
     due = posts_due(settings, database, now)
     if due <= 0:
         print(f"Cuota de las {now.hour}h ya cumplida.")
@@ -484,16 +487,41 @@ def parser() -> argparse.ArgumentParser:
     return root
 
 
-def publish_coupons(dry_run: bool) -> int:
-    """Manual coupon post: no database or deal sources needed, only the Page credentials."""
+def publish_coupons(settings: Settings, database: Database, key: str | None = None, dry_run: bool = False,
+                    publisher: FacebookPublisher | None = None) -> bool:
+    """Coupon post from assets/content/cupones.json (image + caption) plus its story. True when it went out."""
     from app.coupons import CouponRenderer, load_coupon_post
-    from app.publishers.facebook import FacebookPublisher
 
     post = load_coupon_post()
-    image = CouponRenderer(Path(os.getenv("GENERATED_DIR", "generated"))).render_coupons(post)
+    image = CouponRenderer(settings.generated_dir).render_coupons(post)
     print(f"Imagen: {image.resolve()}\n{post.caption}\n")
     if dry_run:
         print("Vista previa de cupones. No se publicó nada.")
+        return False
+    publisher = publisher or FacebookPublisher(settings.fb_page_id, settings.fb_page_token, settings.meta_graph_api_version)
+    post_id = publisher.publish_photo(image, post.caption)
+    database.record_content("cupones", key or f"{post.id}@manual {datetime.now(ZoneInfo('America/Bogota')):%Y-%m-%d %H:%M}", post_id)
+    post_story(settings, database, publisher, image, "¡CUPONES!", "Copia los códigos en nuestra página")
+    print(f"Publicación de cupones creada: {post_id}")
+    return True
+
+
+def scheduled_coupons(settings: Settings, database: Database, now: datetime) -> int:
+    """Publish the coupon post if one of its scheduled times is due. Returns how many posts went out."""
+    from app.coupons import load_coupon_post
+
+    try:
+        post = load_coupon_post()
+        if post.due_slot(now, set()) is None:  # nothing scheduled around now: no database query needed
+            return 0
+        key = post.due_slot(now, {k for kind, k, _ in database.content_history() if kind == "cupones"})
+        if key is None:
+            return 0
+        return int(publish_coupons(settings, database, key=key))
+    except FileNotFoundError:
+        return 0
+    except (FacebookPublishError, OSError, ValueError) as exc:
+        print(f"Falló la publicación programada de cupones: {exc}", file=sys.stderr)
         return 0
     publisher = FacebookPublisher(
         os.getenv("FB_PAGE_ID", ""), os.getenv("FB_PAGE_TOKEN", ""), os.getenv("META_GRAPH_API_VERSION", "v26.0")
@@ -504,12 +532,6 @@ def publish_coupons(dry_run: bool) -> int:
 
 def main() -> int:
     args = parser().parse_args()
-    if args.command == "cupones":
-        try:
-            return publish_coupons(args.dry_run)
-        except (ValueError, FacebookPublishError) as exc:
-            print(f"Error: {exc}", file=sys.stderr)
-            return 2
     try:
         settings = Settings.from_env()
         database, pipeline = build_runtime(settings, include_sources=args.command in {"scan", "run", "publish"})
@@ -574,6 +596,8 @@ def main() -> int:
                 write_report(report, DAILY_PATH if args.diario else REPORT_PATH)
         elif args.command == "ai-preview":
             return ai_preview(settings, database, pipeline, args.limit)
+        elif args.command == "cupones":
+            publish_coupons(settings, database, dry_run=args.dry_run)
         return 0
     except (ValueError, FacebookPublishError) as exc:
         print(f"Error: {exc}", file=sys.stderr)

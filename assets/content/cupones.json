@@ -1,6 +1,7 @@
 {
   "id": "ml-2026-11-14",
   "store": "Mercado Libre",
+  "schedule": ["2026-11-14 10:00"],
   "note": "Se aplica un cupón por compra. Condiciones y disponibilidad según Mercado Libre.",
   "coupons": [
     {"code": "PIDEHOY", "benefit": "$50.000 OFF", "minimum": "$200.000", "tag": "Por agotarse"},
