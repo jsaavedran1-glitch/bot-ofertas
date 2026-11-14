@@ -9,16 +9,18 @@ import subprocess
 from PIL import Image, ImageDraw, ImageOps
 
 from app.image_renderer import GREEN, MUTED, NAVY, PANEL, RED, WHITE, YELLOW, MissingProductImage, OfferImageRenderer
-from app.models import DealObservation, DiscountEvidence, display_name, from_minor, money, store_name, to_minor
+from app.models import DealObservation, DiscountEvidence, display_name, from_minor, money, rating_text, store_name, to_minor
 from app.scoring import price_cop
 
-W, H, FPS, SECONDS = 1080, 1920, 30, 9
+# 16 s: Meta recommends reels of 15-90 s (with sound); 9 s reels got almost no distribution.
+W, H, FPS, SECONDS = 1080, 1920, 30, 16
 MUSIC_DIR = Path(__file__).parent.parent / "assets" / "music"
 SFX_DIR = Path(__file__).parent.parent / "assets" / "sfx"
 MUSIC_EXT = {".mp3", ".m4a", ".wav", ".ogg"}
 # Effects synced to the animation: sticker pops, swipe into the price, coins when the new price lands,
 # ding with the savings pill, swipe into the call to action.
-SFX_CUES = (("pop", 0.3), ("whoosh", 1.85), ("monedas", 3.0), ("notificacion", 3.6), ("whoosh", 5.05))
+SFX_CUES = (("pop", 0.3), ("whoosh", 1.85), ("monedas", 3.0), ("notificacion", 3.6), ("whoosh", 5.45),
+            ("whoosh", 9.45), ("monedas", 10.6), ("whoosh", 12.45))
 BIG_TICKET_COP = 400_000  # from here on, "ahorras $X" sells better than "-X%"
 
 
@@ -66,9 +68,18 @@ TITLE_Y = 1035
 LOWER = (0, 1140, W, 1600)  # area where the phases swap
 FOOTER = (65, 1650, 1015, 1730)
 BURST_CENTER, BURST_R, BURST_BOX = (W - 170, 440), 112, 300
-PHASES = ((0.0, 2.0), (2.0, 5.2), (5.2, SECONDS))
+# (start, end, kind): hook, price reveal, product details, price recap, call to action
+PHASES = ((0.0, 2.0, "hook"), (2.0, 5.6, "price"), (5.6, 9.6, "info"), (9.6, 12.6, "price"), (12.6, SECONDS, "cta"))
 FADE = 0.25
 STORY_MOMENT = 4.9  # seconds into the reel: before price struck through, new price and savings shown
+
+
+def _detail_lines(deal: DealObservation) -> list[str]:
+    """What the details phase lists: Claude's benefit points, else the store rating; never the price."""
+    lines = [p for p in (deal.ai.points if deal.ai else ()) if p][:3]
+    if not lines and rating_text(deal):
+        lines = [f"Calificación {rating_text(deal)}"]
+    return lines + ["Envío y condiciones en la tienda"] if len(lines) < 3 else lines
 
 
 def _ease_out(x: float) -> float:
@@ -210,6 +221,8 @@ class ReelRenderer(OfferImageRenderer):
             "saved": self._pill(f"AHORRAS {saved}") if saved else None,
             "note": f"Precio aprox. en pesos · US${from_minor(deal.price_minor, 'USD'):,.2f}" if in_cop else None,
             "cta": self._cta("Link de la oferta en los comentarios" if link_in_comment else "Link de la oferta en la descripción"),
+            "store": self._text_layer(f"EN {store_name(deal.source).upper()}", 64, YELLOW, max_width=900, minimum=40, weight="Black"),
+            "points": self._points_layer(_detail_lines(deal)),
         }
         return self._base(deal), photo, texts
 
@@ -343,7 +356,7 @@ class ReelRenderer(OfferImageRenderer):
             frame.paste(b, (BURST_CENTER[0] - b.width // 2, BURST_CENTER[1] - b.height // 2), b)
 
         lower = Image.new("RGBA", (LOWER[2] - LOWER[0], LOWER[3] - LOWER[1]), (0, 0, 0, 0))
-        for idx, (start, end) in enumerate(PHASES):
+        for idx, (start, end, kind) in enumerate(PHASES):
             if not start <= t < end:
                 continue
             alpha = 1.0
@@ -353,14 +366,30 @@ class ReelRenderer(OfferImageRenderer):
                 alpha = min(alpha, (end - t) / FADE)
             if alpha <= 0:
                 continue
-            layer = self._phase(idx, t - start, texts)
+            layer = self._phase(kind, t - start, texts)
             if alpha < 1:
                 layer.putalpha(layer.getchannel("A").point(lambda a, k=alpha: int(a * k)))
             lower.alpha_composite(layer)
         frame.paste(lower, (LOWER[0], LOWER[1]), lower)
         return frame
 
-    def _phase(self, idx: int, lt: float, texts: dict) -> Image.Image:
+    def _points_layer(self, lines: list[str]) -> Image.Image | None:
+        """Up to three "✅ benefit" lines for the details phase (Claude's points, or the rating as a fallback)."""
+        if not lines:
+            return None
+        probe = ImageDraw.Draw(Image.new("RGBA", (1, 1)))
+        row_h = 92
+        layer = Image.new("RGBA", (960, row_h * len(lines)), (0, 0, 0, 0))
+        d = ImageDraw.Draw(layer)
+        for i, line in enumerate(lines):
+            font = self._fit_font(probe, line, 840, 44, 28, weight="Bold")
+            width = 64 + int(probe.textlength(line, font=font))
+            x = (960 - width) // 2
+            self._paste_emoji(layer, (x, row_h * i + 22), "✅", 46)
+            d.text((x + 64, row_h * i + row_h // 2), line, anchor="lm", font=font, fill=WHITE)
+        return layer
+
+    def _phase(self, kind: str, lt: float, texts: dict) -> Image.Image:
         size = (LOWER[2] - LOWER[0], LOWER[3] - LOWER[1])
         layer = Image.new("RGBA", size, (0, 0, 0, 0))
         cx = size[0] // 2
@@ -370,9 +399,13 @@ class ReelRenderer(OfferImageRenderer):
                 img = img.resize((max(1, int(img.width * scale)), max(1, int(img.height * scale))), Image.Resampling.BILINEAR)
             layer.alpha_composite(img, (cx - img.width // 2, center_y - img.height // 2))
 
-        if idx == 0:
+        if kind == "hook":
             place(texts["hook"], 225, _pop(lt, 0.0, lo=0.9))
-        elif idx == 1:
+        elif kind == "info":
+            place(texts["store"], 60, _pop(lt, 0.0, lo=0.85))
+            if texts.get("points") is not None and lt >= 0.3:
+                place(texts["points"], 250, _pop(lt, 0.3, lo=0.9))
+        elif kind == "price":
             d = ImageDraw.Draw(layer)
             if texts["before"] is not None:
                 d.text((cx, 25), texts["before_label"], anchor="mm", font=self._font(32, bold=True), fill=MUTED)

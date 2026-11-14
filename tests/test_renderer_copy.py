@@ -114,7 +114,7 @@ class ReelRenderTests(unittest.TestCase):
                 capture_output=True, text=True, check=True,
             ).stdout.split()
             self.assertEqual(info[0], "1080,1920")
-            self.assertAlmostEqual(float(info[1]), 9.0, delta=0.2)
+            self.assertAlmostEqual(float(info[1]), 16.0, delta=0.2)  # Meta: 15-90 s
 
 
 class InsightTests(unittest.TestCase):
@@ -220,7 +220,7 @@ class ReelAudioTests(unittest.TestCase):
                 subprocess.run(["ffmpeg", "-loglevel", "error", "-f", "lavfi", "-i", f"sine=frequency={freq}:duration=0.3",
                                 str(sfx / f"{name}.wav")], check=True)
             cues = rr.sfx_cues(sfx)
-            self.assertEqual([(p.stem, t) for p, t in cues], [("pop", 0.3), ("monedas", 3.0)])
+            self.assertEqual([(p.stem, t) for p, t in cues], [("pop", 0.3), ("monedas", 3.0), ("monedas", 10.6)])
             self.assertIn("adelay=delays=3000", " ".join(rr.audio_args(None, cues)))
             deal = DealObservation(source="alkosto", external_id="S1", title="Parlante", price_minor=45_900,
                                    original_price_minor=119_900, evidence=DiscountEvidence.OFFICIAL_ORIGINAL,
