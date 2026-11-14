@@ -21,16 +21,12 @@ MIN_PRICE_USD = 10
 # e.g. a Galaxy S26 FE at -86 % for US$100. Not credible, so not posted.
 MAX_DISCOUNT_PCT = 75
 
-# (feed, title filter): DealNews categories with the most Amazon deals.
+# (feed, title filter): Amazon is focused on tech and gaming (its best affiliate categories): electronics,
+# computers and video games/consoles. Home, beauty, sports, shoes and toys are left to the Colombian stores.
 _FEEDS = [
     ("https://www.dealnews.com/c142/Electronics/?rss=1", None),
     ("https://www.dealnews.com/c39/Computers/?rss=1", None),
-    ("https://www.dealnews.com/c186/Gaming-Toys/?rss=1", None),
     ("https://www.dealnews.com/c191/Gaming-Toys/Video-Games/?rss=1", None),
-    ("https://www.dealnews.com/c196/Home-Garden/?rss=1", None),
-    ("https://www.dealnews.com/c756/Health-Beauty/?rss=1", None),
-    ("https://www.dealnews.com/c211/Sports-Fitness/?rss=1", None),
-    ("https://www.dealnews.com/c280/Clothing-Accessories/Shoes/?rss=1", None),
 ]
 
 _RETAILER_SOURCE = {"amazon": "amazon"}
