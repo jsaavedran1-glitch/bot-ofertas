@@ -72,9 +72,11 @@ jobs:
       # Revisión diaria del precio de las ofertas recientes (una consulta por producto y día) para que tengan
       # historial continuo aunque no aparezcan en los listados de ofertas de la tienda.
       TRACK_PER_RUN: "30"
-      # Copia en la cuenta de Instagram vinculada a la página (reels y "¿Descuento real?"). Se activa sola cuando
-      # la cuenta esté vinculada y el token tenga instagram_basic + instagram_content_publish; si no, se omite.
-      INSTAGRAM_KINDS: "reel,historial"
+      # Copia en Instagram (@ojoalprecioco, vinculada a la página): todos los reels y, de las publicaciones con
+      # foto (ofertas, datos útiles, noticias, cupones, promo, cuenta regresiva, "¿Descuento real?"), las primeras
+      # INSTAGRAM_PHOTOS_PER_HOUR de cada hora (~15 al día). Instagram permite 100 publicaciones por API al día.
+      INSTAGRAM_KINDS: "reel,historial,oferta,dato,noticia,cupones,promo,evento"
+      INSTAGRAM_PHOTOS_PER_HOUR: "1"
       # Tope de seguridad diario (la suma de arriba es 63; con EVENT_BOOST, ~82)
       MAX_POSTS_PER_DAY: "90"
       # Black Friday (27-29 nov) y Cyber Monday (30 nov): 30 % más publicaciones por hora, etiqueta y hashtags

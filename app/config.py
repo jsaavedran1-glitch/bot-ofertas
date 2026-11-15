@@ -75,6 +75,7 @@ class Settings:
     min_minutes_between_posts: int = 0
     content_hours: frozenset[int] = frozenset()  # CONTENT_HOURS: the hour's first post is a tip or a news item
     history_hours: frozenset[int] = frozenset()  # HISTORY_HOURS: one "¿Descuento real?" price-history post
+    instagram_photos_per_hour: int = 1  # INSTAGRAM_PHOTOS_PER_HOUR: photo posts copied to Instagram each hour (reels: all)
     instagram_kinds: frozenset[str] = frozenset()  # INSTAGRAM_KINDS: what is also posted to the linked Instagram
     track_per_run: int = 0  # TRACK_PER_RUN: recent deals whose price is re-checked each run (price history)
     hourly_posts: tuple[int, ...] = ()
@@ -148,6 +149,7 @@ class Settings:
             metrics_hours=frozenset(int(h) for h in os.getenv("METRICS_HOURS", "7,13,23").split(",") if h.strip()),
             content_hours=frozenset(int(h) for h in os.getenv("CONTENT_HOURS", "").split(",") if h.strip()),
             history_hours=frozenset(int(h) for h in os.getenv("HISTORY_HOURS", "").split(",") if h.strip()),
+            instagram_photos_per_hour=int(os.getenv("INSTAGRAM_PHOTOS_PER_HOUR", "1")),
             instagram_kinds=frozenset(k.strip() for k in os.getenv("INSTAGRAM_KINDS", "").split(",") if k.strip()),
             track_per_run=int(os.getenv("TRACK_PER_RUN", "0")),
             anthropic_api_key=os.getenv("ANTHROPIC_API_KEY", "").strip(),

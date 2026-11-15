@@ -21,6 +21,7 @@ from app.models import DealObservation, DiscountEvidence, store_name, to_minor, 
 from app.pipeline import OfferPipeline
 from app.reel_renderer import ReelRenderer
 from app.publishers.facebook import FacebookPublisher, FacebookPublishError
+from app.publishers.instagram import InstagramPublisher, InstagramPublishError
 from app.quality import ensure_recommendable, names_of
 from app.sources import PartnerFeedSource
 from app.sources.amazon_rss import AmazonRssSource
@@ -104,6 +105,7 @@ def publish_promo(settings: Settings, database: Database, pipeline: OfferPipelin
         except FacebookPublishError as exc:
             print(f"Advertencia promo: {exc}", file=sys.stderr)
     post_story(settings, database, publisher, image, "¡NO TE LO PIERDAS!", "Mira la promo completa en nuestra página")
+    to_instagram(settings, database, publisher, "promo", caption)
     print(f"Promo del día publicada ({promo.key}, {len(promo.deals)} productos): {post_id}")
     return True
 
@@ -119,6 +121,21 @@ def post_story(settings: Settings, database: Database, publisher: FacebookPublis
         publisher.publish_story(story)
     except (FacebookPublishError, OSError) as exc:
         print(f"Advertencia historia: {exc}", file=sys.stderr)
+
+
+def to_instagram(settings: Settings, database: Database, publisher: FacebookPublisher, kind: str, caption: str) -> None:
+    """Copy of a just-published Facebook photo post on the linked Instagram (INSTAGRAM_KINDS), only for the hour's
+    first INSTAGRAM_PHOTOS_PER_HOUR posts so the feed isn't flooded. A bonus: failures only warn."""
+    if kind not in settings.instagram_kinds or database.posts_this_hour() > settings.instagram_photos_per_hour:
+        return
+    instagram = InstagramPublisher.for_page(settings.fb_page_id, settings.fb_page_token, settings.meta_graph_api_version)
+    if instagram is None:
+        return
+    try:
+        media_id = instagram.publish_image(publisher.photo_source(publisher.last_photo_id), caption)
+        print(f"Instagram ({kind}): {media_id}")
+    except (InstagramPublishError, FacebookPublishError, OSError) as exc:
+        print(f"Advertencia Instagram: {exc}", file=sys.stderr)
 
 
 def publish_content(settings: Settings, database: Database, pipeline: OfferPipeline,
@@ -156,6 +173,7 @@ def publish_content(settings: Settings, database: Database, pipeline: OfferPipel
         post_story(settings, database, publisher, image, "¡ESTO TE SIRVE!", "Míralo completo en nuestra página")
     else:
         post_story(settings, database, publisher, image, "ÚLTIMA NOTICIA", "La fuente está en nuestra página")
+    to_instagram(settings, database, publisher, post.kind, caption)
     print(f"{'Dato útil' if post.kind == 'dato' else 'Noticia'} publicado ({post.source}): {post_id}")
     return True
 
@@ -285,10 +303,12 @@ def publish_countdown(settings: Settings, database: Database, today, publisher: 
     image = CountdownRenderer(settings.generated_dir).render_countdown(event, left, f"cuenta_{event.key}_{left}")
     stores = "Amazon, Alkosto, Ktronix, Éxito, Falabella, Nike y Tennis"
     publisher = publisher or FacebookPublisher(settings.fb_page_id, settings.fb_page_token, settings.meta_graph_api_version)
-    post_id = publisher.publish_photo(image, countdown_caption(event, left, stores))
+    caption = countdown_caption(event, left, stores)
+    post_id = publisher.publish_photo(image, caption)
     database.record_content("evento", key, post_id)
     post_story(settings, database, publisher, image, f"¡SE VIENE EL {event.tag}!" if left else f"¡HOY ES {event.tag}!",
                "Activa las notificaciones de la página")
+    to_instagram(settings, database, publisher, "evento", caption)
     print(f"{event.name}: {'hoy es' if left == 0 else f'faltan {left} días'} publicado: {post_id}")
     return True
 
@@ -592,6 +612,7 @@ def publish_coupons(settings: Settings, database: Database, key: str | None = No
     post_id = publisher.publish_photo(image, post.caption)
     database.record_content("cupones", key or f"{post.id}@manual {datetime.now(ZoneInfo('America/Bogota')):%Y-%m-%d %H:%M}", post_id)
     post_story(settings, database, publisher, image, "¡CUPONES!", "Copia los códigos en nuestra página")
+    to_instagram(settings, database, publisher, "cupones", post.caption)
     print(f"Publicación de cupones creada: {post_id}")
     return True
 

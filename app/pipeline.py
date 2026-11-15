@@ -131,6 +131,8 @@ class OfferPipeline:
         """Bonus copy on Instagram of what just went out on Facebook (INSTAGRAM_KINDS); failures only warn."""
         if kind not in self.settings.instagram_kinds:
             return
+        if video is None and self.database.posts_this_hour() > self.settings.instagram_photos_per_hour:
+            return  # photos: only the hour's first ones, so the Instagram feed isn't flooded (reels always go)
         instagram = self._instagram()
         if instagram is None:
             return

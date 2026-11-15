@@ -149,5 +149,23 @@ class ContentTests(unittest.TestCase):
         self.assertEqual(len(publisher.stories), 1)
 
 
+class InstagramCopyTests(unittest.TestCase):
+    def test_only_the_hours_first_photo_post_is_copied_to_instagram(self):
+        from unittest.mock import patch
+        sent = []
+        ig = SimpleNamespace(publish_image=lambda url, caption: sent.append((url, caption)) or "ig_1")
+        publisher = SimpleNamespace(last_photo_id="ph_1", photo_source=lambda pid: f"https://cdn.example/{pid}.jpg")
+        with tempfile.TemporaryDirectory() as d:
+            settings = settings_for(d).__class__(**{**settings_for(d).__dict__, "instagram_kinds": frozenset({"dato"}),
+                                                    "instagram_photos_per_hour": 1})
+            db = SimpleNamespace(posts_this_hour=lambda: 1)
+            with patch.object(main.InstagramPublisher, "for_page", return_value=ig):
+                main.to_instagram(settings, db, publisher, "dato", "texto")      # 1st of the hour: copied
+                main.to_instagram(settings, db, publisher, "cupones", "texto")   # kind not enabled
+                db.posts_this_hour = lambda: 2
+                main.to_instagram(settings, db, publisher, "dato", "texto")      # 2nd of the hour: not copied
+        self.assertEqual(sent, [("https://cdn.example/ph_1.jpg", "texto")])
+
+
 if __name__ == "__main__":
     unittest.main()
