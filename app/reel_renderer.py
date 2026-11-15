@@ -224,7 +224,8 @@ class ReelRenderer(OfferImageRenderer):
         draw.text((W // 2, 250), headline, anchor="mm", font=self._fit_font(draw, headline, 980, 72, 36, weight="Black"), fill=YELLOW)
         with Image.open(image_path) as post_image:
             post = ImageOps.contain(post_image.convert("RGB"), (1000, 1250), Image.Resampling.LANCZOS)
-        frame.paste(post, (W // 2 - post.width // 2, 330))
+        top = 330 + max(0, (1250 - post.height) // 2)  # wide banners sit in the middle, not stuck to the top
+        frame.paste(post, (W // 2 - post.width // 2, top))
         self._story_pointer(frame, pointer, (65, 1620, W - 65, 1700))
         self.output_dir.mkdir(parents=True, exist_ok=True)
         output = self.output_dir / f"{name}.png"

@@ -581,7 +581,8 @@ class Database:
         local = utc_now().astimezone(ZoneInfo("America/Bogota"))
         start = local.replace(minute=0, second=0, microsecond=0).astimezone(timezone.utc).isoformat()
         with self._connection() as conn:
-            row = conn.execute(self._sql("SELECT 1 FROM content_publications WHERE published_at>=? LIMIT 1"), (start,)).fetchone()
+            row = conn.execute(self._sql("SELECT 1 FROM content_publications WHERE published_at>=?"
+                                         " AND kind IN ('dato', 'noticia') LIMIT 1"), (start,)).fetchone()
         return row is not None
 
     def top_published_today(self) -> bool:
