@@ -13,7 +13,7 @@ from zoneinfo import ZoneInfo
 
 from app.config import Settings
 from app.events import CountdownRenderer, active_event, countdown, countdown_caption
-from app.metrics import (ENOUGH_INTERACTIONS, MetricsError, PostStats, daily_report, fetch_page_stats, fetch_views,
+from app.metrics import (ENOUGH_INTERACTIONS, fetch_page_reach, MetricsError, PostStats, daily_report, fetch_page_stats, fetch_views,
                          has_views, weekly_report)
 from app.content import ContentRenderer, NewsFeeds, content_caption, load_tips, news_post, next_tip
 from app.database import Database
@@ -246,6 +246,8 @@ def build_daily_report(settings: Settings, database: Database, pipeline: OfferPi
         "new_by_source": database.new_candidates_between(start, end),
         "queue": sum(len(q) for q in publish_queues(database, False, settings.repost_cooldown_days)),
         "published_kinds": [kind for _, kind, _, at in database.posts_since(start) if at < end],
+        "page_reach": (fetch_page_reach(settings.fb_page_id, settings.fb_page_token, settings.meta_graph_api_version, day)
+                       if settings.fb_page_token else None),
     }
     names = {src: store_name(src) for src in {p.source for p in posts} | set(ops["new_by_source"])}
     report = daily_report(posts, week, ops, day, names)

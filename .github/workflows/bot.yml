@@ -80,7 +80,7 @@ jobs:
       # Tope de seguridad diario (la suma de arriba es 63; con EVENT_BOOST, ~82)
       MAX_POSTS_PER_DAY: "90"
       # Tope diario por tienda (fotos y reels): Falabella y Tennis llenaban la rotación con las vistas más bajas
-      STORE_MAX_PER_DAY: "falabella:6,tennis:4"
+      STORE_MAX_PER_DAY: "falabella:6,tennis:2"
       # Black Friday (27-29 nov) y Cyber Monday (30 nov): 30 % más publicaciones por hora, etiqueta y hashtags
       # del evento. Del 20 al 26 de nov, cuenta regresiva a las 8 h (app/events.py).
       EVENT_BOOST: "1.3"

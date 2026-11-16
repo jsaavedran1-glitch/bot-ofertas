@@ -339,5 +339,343 @@
     "fuente": "Estatuto del Consumidor, Ley 1480 de 2011 (Secretaría General del Senado) – art. 50 literal g",
     "url": "http://www.secretariasenado.gov.co/senado/basedoc/ley_1480_2011_pr001.html",
     "verificado": "Art. 50 lit. g (modificado por Ley 2439 de 2024): canales de atención con número de registro o radicado, fecha y hora, y mecanismo de seguimiento."
+  },
+  {
+    "key": "no-compartas-claves-ni-codigos",
+    "titulo": "Ni claves ni códigos: no se los des a nadie",
+    "puntos": [
+      "No abras enlaces ni descargues archivos de SMS, correos o chats sospechosos.",
+      "Nunca compartas tus claves ni los códigos del banco que llegan por SMS, email o app.",
+      "¿Te escribió 'el banco'? Verifica directo con tu entidad por sus canales oficiales."
+    ],
+    "pregunta": "¿Te ha llegado un mensaje sospechoso pidiendo un código? Cuéntanos",
+    "hashtags": [
+      "#CompraSegura",
+      "#Fraude"
+    ],
+    "fuente": "Superintendencia Financiera de Colombia – Protégete de los fraudes: Consejos para evitar ser víctima",
+    "url": "https://www.superfinanciera.gov.co/publicaciones/10115895/consejos-para-evitar-ser-victima/",
+    "verificado": "Página de la SFC (modificada 21/04/2026): no abrir enlaces ni archivos sospechosos, no compartir contraseñas ni códigos de seguridad, verificar por canales oficiales."
+  },
+  {
+    "key": "fraude-con-tarjeta-que-hacer",
+    "titulo": "¿Fuiste víctima de fraude? Haz esto ya",
+    "puntos": [
+      "Avísale de inmediato a tu banco y, si aún puedes, bloquea tus productos.",
+      "Guarda pruebas: correos, mensajes y pantallazos de todo lo que pasó.",
+      "Pon la denuncia ante la Policía (CAI Virtual) o la Fiscalía."
+    ],
+    "pregunta": "¿Sabías qué hacer en los primeros minutos de un fraude?",
+    "hashtags": [
+      "#Fraude",
+      "#DatoUtil"
+    ],
+    "fuente": "Superintendencia Financiera de Colombia – Protégete de los fraudes: ¿Qué hacer si eres víctima?",
+    "url": "https://www.superfinanciera.gov.co/publicaciones/10115896/que-hacer-si-eres-victima/",
+    "verificado": "Página de la SFC (modificada 21/04/2026): reportar a la entidad, inactivar productos, guardar evidencias y denunciar ante Policía (CAI Virtual) o Fiscalía."
+  },
+  {
+    "key": "queja-contra-el-banco-ruta",
+    "titulo": "¿El banco no te soluciona? Esta es la ruta",
+    "puntos": [
+      "Queja ante el banco, su Defensor del Consumidor Financiero o la Superfinanciera.",
+      "Si no responden o no estás de acuerdo, puedes pedir una conciliación.",
+      "Después, demanda; si es por menos de 40 salarios mínimos, no necesitas abogado."
+    ],
+    "pregunta": "¿Alguna vez tuviste que poner una queja contra un banco?",
+    "hashtags": [
+      "#ConsumidorFinanciero",
+      "#Reclamos"
+    ],
+    "fuente": "Superintendencia Financiera de Colombia – Protégete de los fraudes: ¿Qué hacer si eres víctima?",
+    "url": "https://www.superfinanciera.gov.co/publicaciones/10115896/que-hacer-si-eres-victima/",
+    "verificado": "Sección '¿Qué puede hacer el consumidor financiero?': queja (entidad, Defensor o SFC), conciliación y acción de protección al consumidor financiero sin abogado por debajo de 40 SMLMV."
+  },
+  {
+    "key": "estafa-paquete-retenido-dian",
+    "titulo": "¿'Tu paquete está retenido'? Ojo, puede ser estafa",
+    "puntos": [
+      "Se hacen pasar por la DIAN o la transportadora y piden pagar para 'liberarlo'.",
+      "También inventan multas de aduana o reembolsos para sacarte los datos de tu tarjeta.",
+      "O te llaman a 'actualizar datos' o 'verificar identidad' antes de la entrega."
+    ],
+    "pregunta": "¿Te ha llegado un mensaje de un paquete que no esperabas?",
+    "hashtags": [
+      "#CompraSegura",
+      "#Estafas"
+    ],
+    "fuente": "DIAN – Fraudes de tráfico postal y envíos urgentes",
+    "url": "https://www.dian.gov.co/aduanas/Documents/Fraudes-de-trafico-postal-y-envios-urgentes.pdf",
+    "verificado": "Pieza informativa de la DIAN (publicada en dian.gov.co, consultada 15/11/2026): tipologías de falsos paquetes retenidos, falsas multas aduaneras, reembolsos falsos y falsas actualizaciones de datos."
+  },
+  {
+    "key": "amazon-nunca-pide-tarjetas-de-regalo",
+    "titulo": "Amazon nunca te pedirá pagar con tarjetas de regalo",
+    "puntos": [
+      "Ninguna compra legítima se paga con tarjetas de regalo: si te lo piden, es estafa.",
+      "Amazon solo cobra en su app, su web o sus tiendas físicas; no por teléfono ni email.",
+      "Tampoco te pide instalar programas ni darle acceso remoto a tu celular o PC."
+    ],
+    "pregunta": "¿Te han llamado haciéndose pasar por Amazon?",
+    "hashtags": [
+      "#Amazon",
+      "#Estafas"
+    ],
+    "fuente": "Amazon – How to spot and avoid scams (About Amazon, actualizado 08/06/2026)",
+    "url": "https://www.aboutamazon.com/news/retail/how-to-avoid-amazon-scams",
+    "verificado": "Guía oficial de Amazon: nunca pide comprar tarjetas de regalo, solo cobra en app/web/tiendas, no pide software ni acceso remoto, y recomienda no llamar a números recibidos por SMS o email."
+  },
+  {
+    "key": "amazon-historial-de-precios",
+    "titulo": "¿Descuento real? Mira el historial de precios",
+    "puntos": [
+      "En Amazon.com toca 'Price History' en la página del producto.",
+      "Verás hasta 365 días de precios: así sabes si la rebaja es de verdad.",
+      "También puedes poner alertas para que te avise cuando baje."
+    ],
+    "pregunta": "¿Revisas el historial de precio antes de comprar?",
+    "hashtags": [
+      "#Amazon",
+      "#BlackFriday"
+    ],
+    "fuente": "Amazon – FAQ Black Friday 2026 (About Amazon, actualizado 10/11/2026)",
+    "url": "https://www.aboutamazon.com/news/retail/when-is-amazon-black-friday-faq",
+    "verificado": "FAQ de Amazon: botón 'Price History' en cualquier página de producto con hasta 365 días de precios, y alertas de precio con Alexa for Shopping."
+  },
+  {
+    "key": "amazon-garantia-de-la-a-a-la-z",
+    "titulo": "Amazon: la garantía 'de la A a la Z' te respalda",
+    "puntos": [
+      "Cubre compras a vendedores externos en Amazon.com: no llegó, llegó dañado o distinto.",
+      "La pides hasta 90 días después de la última fecha posible de entrega.",
+      "Si no llegó: 3 días tras la fecha estimada y sin respuesta del vendedor en 48 horas."
+    ],
+    "pregunta": "¿Has tenido que reclamarle a un vendedor externo en Amazon?",
+    "hashtags": [
+      "#Amazon",
+      "#ComprasInternacionales"
+    ],
+    "fuente": "Amazon.com – Customer Service: A-to-z Guarantee",
+    "url": "https://www.amazon.com/gp/help/customer/display.html?nodeId=GQ37ZCNECJKTFYQV",
+    "verificado": "Página de ayuda de Amazon: aplica a vendedores externos, plazo de 90 días desde la última fecha de entrega, 3 días tras la fecha estimada + 48 h sin respuesta del vendedor; también cubre artículos dañados o distintos."
+  },
+  {
+    "key": "amazon-deposito-impuestos-importacion",
+    "titulo": "Amazon: ¿qué pasa con el depósito de impuestos?",
+    "puntos": [
+      "Si el depósito de importación supera el costo real, te devuelven la diferencia.",
+      "Si el costo real resulta mayor, no te cobran nada adicional.",
+      "Ojo: si es cargo fijo ('Import Charges'), no hay devolución aunque el real sea menor."
+    ],
+    "pregunta": "¿Te han devuelto alguna vez parte del depósito de importación?",
+    "hashtags": [
+      "#Amazon",
+      "#ComprasInternacionales"
+    ],
+    "fuente": "Amazon.com – International Shipping Terms & Conditions (sección 3, Import Fees)",
+    "url": "https://www.amazon.com/gp/help/customer/display.html?nodeId=GVDNARTHZN5A7NXG",
+    "verificado": "Términos de envío internacional de Amazon Export: devolución de la diferencia del Import Fees Deposit, sin cobro adicional si el real es mayor, Import Charges fijos no reembolsables (productos vendidos por Amazon Export o enviados por Amazon)."
+  },
+  {
+    "key": "mercado-libre-compra-protegida",
+    "titulo": "Mercado Libre: así funciona la Compra Protegida",
+    "puntos": [
+      "Si no te llega el producto, tienes 21 días desde que compras para reclamar.",
+      "Si te arrepientes o llega con fallas: hasta 30 días tras recibirlo, según el motivo.",
+      "No cubre pagos con Mercado Pago por fuera de Mercado Libre ni envíos de dinero."
+    ],
+    "pregunta": "¿Has usado la Compra Protegida? ¿Te devolvieron la plata?",
+    "hashtags": [
+      "#MercadoLibre",
+      "#CompraSegura"
+    ],
+    "fuente": "Mercado Libre Colombia – Compra Protegida",
+    "url": "https://www.mercadolibre.com.co/compra-protegida",
+    "verificado": "Página oficial de Mercado Libre Colombia: 21 días desde la compra si no llega, hasta 30 días desde la recepción según el motivo, y exclusiones (pagos por fuera de Mercado Libre, envíos de dinero, categorías excluidas)."
+  },
+  {
+    "key": "steam-reembolso-14-dias-2-horas",
+    "titulo": "Steam: reembolso en 14 días si jugaste menos de 2 h",
+    "puntos": [
+      "Pídelo en help.steampowered.com: hasta 14 días tras comprar y menos de 2 h de juego.",
+      "¿Lo compraste y luego bajó? Reembolsar y recomprar a precio rebajado no es abuso.",
+      "Ojo: claves o tarjetas de Steam compradas a terceros no se reembolsan por Steam."
+    ],
+    "pregunta": "¿Alguna vez pediste un reembolso en Steam?",
+    "hashtags": [
+      "#Steam",
+      "#Gaming"
+    ],
+    "fuente": "Valve – Reembolsos en Steam",
+    "url": "https://store.steampowered.com/steam_refunds/?l=latam",
+    "verificado": "Política de reembolsos de Steam: 14 días/2 horas, solicitud en help.steampowered.com, recompra en rebajas no es abuso, compras fuera de Steam no reembolsables."
+  },
+  {
+    "key": "ps-store-cancelar-compra-14-dias",
+    "titulo": "PS Store: puedes cancelar en 14 días si no descargaste",
+    "puntos": [
+      "Contenido digital: cancela en 14 días desde la compra si no empezaste a descargarlo.",
+      "Las reservas se cancelan en cualquier momento antes del lanzamiento.",
+      "Ojo con descargas automáticas: si bajó casi toda la reserva, pierdes el reembolso."
+    ],
+    "pregunta": "¿Tienes activadas las descargas automáticas en tu consola?",
+    "hashtags": [
+      "#PlayStation",
+      "#Gaming"
+    ],
+    "fuente": "PlayStation – Política de cancelación de PlayStation Store (Colombia)",
+    "url": "https://www.playstation.com/es-co/legal/playstation-store-cancellation-policy/",
+    "verificado": "Política para Colombia: 14 días sin iniciar descarga o transmisión (reembolso al monedero PSN), reservas cancelables antes del lanzamiento y advertencia sobre descargas automáticas."
+  },
+  {
+    "key": "celular-usado-revisa-el-imei",
+    "titulo": "¿Celular usado o importado? Revisa el IMEI",
+    "puntos": [
+      "Consulta en imeicolombia.com.co si el IMEI está en la base de datos negativa.",
+      "Si el IMEI es inválido, el operador avisa por SMS y lo bloquea en 48 h, definitivo.",
+      "Comprado afuera: las autoridades de consumidor de Colombia no pueden intervenir."
+    ],
+    "pregunta": "¿Comprarías un celular usado por internet?",
+    "hashtags": [
+      "#Celulares",
+      "#CompraSegura"
+    ],
+    "fuente": "Comisión de Regulación de Comunicaciones (CRC) – Tipologías de bloqueo de equipos",
+    "url": "https://www.crcom.gov.co/es/micrositios/comunicados-como-es/tipologias-bloqueo",
+    "verificado": "Página de la CRC: bloqueo de IMEI inválido en 48 h tras SMS, uso solo de equipos homologados, sin intervención para equipos comprados en el exterior; imeicolombia.com.co ofrece la consulta pública de la base negativa (Ley 1453/2011, Res. CRC 3128/2011)."
+  },
+  {
+    "key": "garantia-compra-en-el-exterior",
+    "titulo": "¿Lo compraste afuera? Tu garantía global sí vale aquí",
+    "puntos": [
+      "Si el producto trae garantía global o válida en Colombia, la puedes exigir aquí.",
+      "Se la reclamas al representante de la marca en Colombia.",
+      "Guarda la factura: debes demostrar que lo compraste en el exterior."
+    ],
+    "pregunta": "¿Has hecho valer en Colombia una garantía de algo comprado afuera?",
+    "hashtags": [
+      "#GarantiaLegal",
+      "#ComprasInternacionales"
+    ],
+    "fuente": "Estatuto del Consumidor, Ley 1480 de 2011 (Secretaría General del Senado) – art. 13, parágrafo 2",
+    "url": "http://www.secretariasenado.gov.co/senado/basedoc/ley_1480_2011.html",
+    "verificado": "Art. 13 parágrafo 2 (texto actualizado al 31/10/2026): bienes comprados en el exterior con garantía global o válida en Colombia se reclaman al representante de marca, probando la compra en el exterior."
+  },
+  {
+    "key": "reacondicionados-y-open-box",
+    "titulo": "Reacondicionado u open box: deben decírtelo claro",
+    "puntos": [
+      "Usados, reparados, reacondicionados o descontinuados deben anunciarse así, visible.",
+      "Si la factura menciona un defecto y lo aceptas, la garantía no cubre ese defecto.",
+      "Esa excepción es solo para lo informado: revisa bien la factura antes de pagar."
+    ],
+    "pregunta": "¿Comprarías un producto reacondicionado para ahorrar?",
+    "hashtags": [
+      "#GarantiaLegal",
+      "#DatoUtil"
+    ],
+    "fuente": "Estatuto del Consumidor, Ley 1480 de 2011 (Secretaría General del Senado) – art. 15",
+    "url": "http://www.secretariasenado.gov.co/senado/basedoc/ley_1480_2011.html",
+    "verificado": "Art. 15: productos imperfectos, usados, reparados, remanufacturados, repotencializados o descontinuados deben indicarse de forma precisa y notoria; la garantía no aplica al defecto informado en la factura y aceptado."
+  },
+  {
+    "key": "cuando-la-garantia-no-aplica",
+    "titulo": "¿Cuándo te pueden negar la garantía?",
+    "puntos": [
+      "Si prueban fuerza mayor, culpa de un tercero o mal uso del producto.",
+      "O si no seguiste el manual... pero solo si te lo dieron en español.",
+      "Y en todo caso deben demostrar que eso fue lo que causó la falla."
+    ],
+    "pregunta": "¿Te han negado una garantía por 'mal uso'?",
+    "hashtags": [
+      "#GarantiaLegal",
+      "#DerechosDelConsumidor"
+    ],
+    "fuente": "Estatuto del Consumidor, Ley 1480 de 2011 (Secretaría General del Senado) – art. 16",
+    "url": "http://www.secretariasenado.gov.co/senado/basedoc/ley_1480_2011.html",
+    "verificado": "Art. 16: causales de exoneración (fuerza mayor/caso fortuito, hecho de tercero, uso indebido, no seguir instrucciones si hubo manual en castellano) y deber de probar el nexo causal."
+  },
+  {
+    "key": "deja-tu-equipo-con-recibo",
+    "titulo": "¿Dejas un equipo en reparación? Exige recibo",
+    "puntos": [
+      "Recibo con fecha, tus datos, el equipo, el servicio y, si se sabe, precio y entrega.",
+      "En garantía, al devolverlo deben dejar constancia de qué repararon y qué piezas.",
+      "Si no anotan nada al recibirlo, se entiende que lo dejaste en buen estado."
+    ],
+    "pregunta": "¿Te piden recibo cuando dejas el celular en reparación?",
+    "hashtags": [
+      "#GarantiaLegal",
+      "#DatoUtil"
+    ],
+    "fuente": "Estatuto del Consumidor, Ley 1480 de 2011 (Secretaría General del Senado) – arts. 12 y 18",
+    "url": "http://www.secretariasenado.gov.co/senado/basedoc/ley_1480_2011.html",
+    "verificado": "Art. 18 num. 1 (contenido del recibo) y art. 12 (constancia de reparación con descripción y piezas; sin salvedades se presume entrega en buen estado)."
+  },
+  {
+    "key": "ventas-atadas-prohibidas",
+    "titulo": "No te pueden obligar a comprar algo para llevar otro",
+    "puntos": [
+      "Está prohibido condicionar la compra de un producto a que compres otro.",
+      "Ni condicionar un premio o incentivo a que aceptes una cláusula del contrato."
+    ],
+    "pregunta": "¿Te han querido vender algo 'obligado' para llevarte otra cosa?",
+    "hashtags": [
+      "#DerechosDelConsumidor",
+      "#DatoUtil"
+    ],
+    "fuente": "Estatuto del Consumidor, Ley 1480 de 2011 (Secretaría General del Senado) – art. 36",
+    "url": "http://www.secretariasenado.gov.co/senado/basedoc/ley_1480_2011_pr001.html",
+    "verificado": "Art. 36 (prohibición de ventas atadas), texto actualizado al 31/10/2026."
+  },
+  {
+    "key": "clausulas-abusivas-no-valen",
+    "titulo": "Letra pequeña abusiva: esas cláusulas no valen",
+    "puntos": [
+      "No valen cláusulas que te hagan renunciar a tus derechos de consumidor.",
+      "Ni las que limitan lo que la tienda debe responder por ley o te pasan a ti la prueba.",
+      "Ni renovaciones automáticas que te impidan cancelar cuando quieras (hay excepciones)."
+    ],
+    "pregunta": "¿Lees los términos y condiciones antes de aceptar?",
+    "hashtags": [
+      "#DerechosDelConsumidor",
+      "#LetraPequeña"
+    ],
+    "fuente": "Estatuto del Consumidor, Ley 1480 de 2011 (Secretaría General del Senado) – arts. 42 y 43",
+    "url": "http://www.secretariasenado.gov.co/senado/basedoc/ley_1480_2011_pr001.html",
+    "verificado": "Art. 43 num. 1, 2, 3 y 14: ineficaces de pleno derecho las cláusulas que limitan responsabilidad, implican renuncia de derechos, invierten la carga de la prueba o impiden terminar renovaciones automáticas (salvo art. 41)."
+  },
+  {
+    "key": "reporte-negativo-centrales-de-riesgo",
+    "titulo": "Compras a crédito: así funciona el reporte negativo",
+    "puntos": [
+      "Antes de reportarte deben avisarte; pueden reportar 20 días calendario después.",
+      "Si te reportaron sin aviso y ya pagaste, deben retirar el reporte de inmediato.",
+      "Pagada la deuda, el dato negativo dura el doble del tiempo en mora, máximo 4 años."
+    ],
+    "pregunta": "¿Revisas tu historial en centrales de riesgo?",
+    "hashtags": [
+      "#HabeasData",
+      "#FinanzasPersonales"
+    ],
+    "fuente": "Ley 1266 de 2008 (modificada por Ley 2157 de 2021) – Secretaría General del Senado",
+    "url": "http://www.secretariasenado.gov.co/senado/basedoc/ley_1266_2008.html",
+    "verificado": "Art. 12 y parágrafo (aviso previo, 20 días calendario, retiro inmediato sin aviso si la obligación se extinguió) y art. 13 (permanencia: doble de la mora, máx. 4 años); texto actualizado al 31/10/2026."
+  },
+  {
+    "key": "menores-compras-online",
+    "titulo": "Menores comprando online: lo que dice la ley",
+    "puntos": [
+      "La tienda online debe tomar medidas para verificar la edad de quien compra.",
+      "Si compra un menor, debe quedar constancia de la autorización expresa de los padres."
+    ],
+    "pregunta": "¿Tus hijos compran juegos o recargas por internet?",
+    "hashtags": [
+      "#Gaming",
+      "#DerechosDelConsumidor"
+    ],
+    "fuente": "Estatuto del Consumidor, Ley 1480 de 2011 (Secretaría General del Senado) – art. 52",
+    "url": "http://www.secretariasenado.gov.co/senado/basedoc/ley_1480_2011_pr001.html",
+    "verificado": "Art. 52 (protección de niños, niñas y adolescentes en comercio electrónico), texto actualizado al 31/10/2026."
   }
 ]

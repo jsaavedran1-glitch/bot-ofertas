@@ -56,7 +56,7 @@ class PostStats:
 
 
 VIEW_METRICS = "post_media_view,post_total_media_view_unique"
-REEL_METRICS = "blue_reels_play_count,post_impressions_unique"
+REEL_METRICS = "blue_reels_play_count"  # post_impressions_unique is gone in v26: Meta rejects the whole call
 NO_VIEWS = ("Meta no entrega vistas ni cuentas con el token actual (le falta el permiso read_insights o la página "
             "no tiene acceso a estadísticas). Comprueba el token con el modo «permisos».")
 
@@ -116,8 +116,6 @@ def fetch_views(page_id: str, token: str, version: str, since: datetime, reel_id
         if "blue_reels_play_count" in values:
             row = views.setdefault(reel, {"views": None, "viewers": None, "plays": None})
             row["plays"] = values["blue_reels_play_count"]
-            if row["viewers"] is None:
-                row["viewers"] = values.get("post_impressions_unique")
     if seen and not views:
         return views, NO_VIEWS
     return views, None
@@ -287,6 +285,29 @@ def _groups(posts: list[PostStats], names: dict[str, str]):
     return by_kind, by_store, by_band
 
 
+def fetch_page_reach(page_id: str, token: str, version: str, day, session: requests.Session | None = None) -> dict | None:
+    """{"views", "people"} for the whole Page on `day`, from Meta's daily page insights (needs read_insights).
+    Meta's days run on Pacific time and are labelled by their end, so `day` is the value ending on day + 1."""
+    session = session or requests.Session()
+    try:
+        payload = session.get(f"https://graph.facebook.com/{version}/{page_id}/insights", timeout=(5, 30), params={
+            "metric": "page_media_view,page_total_media_view_unique", "period": "day", "access_token": token,
+            "since": (day - timedelta(days=1)).isoformat(), "until": (day + timedelta(days=2)).isoformat()}).json()
+    except (requests.RequestException, ValueError):
+        return None
+    if not isinstance(payload, dict) or "error" in payload:
+        return None
+    label = (day + timedelta(days=1)).isoformat()
+    found = {}
+    for metric in payload.get("data", []):
+        for value in metric.get("values", []):
+            if str(value.get("end_time", "")).startswith(label):
+                found[metric.get("name")] = value.get("value")
+    if not found:
+        return None
+    return {"views": found.get("page_media_view"), "people": found.get("page_total_media_view_unique")}
+
+
 def daily_report(posts: list[PostStats], week: list[PostStats], ops: dict, day, names: dict[str, str] | None = None) -> str:
     """One day: operation first (planned vs published, failures, new deals, queue), then engagement."""
     names = names or {}
@@ -326,6 +347,10 @@ def daily_report(posts: list[PostStats], week: list[PostStats], ops: dict, day, 
     if queue is not None:
         days_left = f" (alcanza para ~{queue / per_day:.1f} días)".replace(".", ",") if per_day else ""
         lines.append(f"- Cola: {queue} productos distintos listos para publicar{days_left}")
+    reach = ops.get("page_reach")
+    if reach and reach.get("people") is not None:
+        lines.append(f"- Alcance de la página (Meta): {_n(reach['people'], 'persona')} distintas · "
+                     f"{_n(reach.get('views') or 0, 'vista')}")
     lines.append("")
     if posts:
         by_kind, by_store, by_band = _groups(posts, names)
