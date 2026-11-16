@@ -82,8 +82,22 @@ def main() -> int:
     pages = r2.json().get("data", [])
     match = next((p for p in pages if p["id"] == page_id), None)
     if not match:
-        names = ", ".join(f"{p['name']} ({p['id']})" for p in pages)
-        print(f"ERROR: página {page_id} no encontrada. Páginas disponibles: {names}", file=sys.stderr)
+        # Pages in a business portfolio (or the "new Pages experience") often don't show in /me/accounts,
+        # but the page itself still hands out its token to an admin.
+        direct = requests.get(f"{GRAPH}/{page_id}", params={"access_token": long_user_token,
+                                                           "fields": "id,name,access_token"}, timeout=15).json()
+        if direct.get("access_token"):
+            match = direct
+    if not match:
+        debug = requests.get(f"{GRAPH}/debug_token", params={"input_token": long_user_token,
+                                                             "access_token": f"{app_id}|{app_secret}"}, timeout=15).json()
+        scopes = {g.get("scope"): g.get("target_ids", []) for g in debug.get("data", {}).get("granular_scopes", [])}
+        names = ", ".join(f"{p['name']} ({p['id']})" for p in pages) or "ninguna"
+        print(f"ERROR: el token no tiene acceso a la página {page_id}. Páginas que ve: {names}.", file=sys.stderr)
+        print(f"  Páginas autorizadas por permiso: {scopes or 'sin detalle'}", file=sys.stderr)
+        print("  Solución: en el Graph API Explorer pulsa de nuevo 'Generate Access Token' y, en la ventana de", file=sys.stderr)
+        print("  Facebook, elige 'Editar acceso' (o 'Edit previous settings') y marca la página Ojo al Precio.", file=sys.stderr)
+        print("  Si la página está en un portafolio comercial, agrega también el permiso business_management.", file=sys.stderr)
         return 1
 
     page_token = match["access_token"]
