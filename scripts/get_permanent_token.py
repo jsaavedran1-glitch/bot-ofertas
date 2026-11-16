@@ -38,10 +38,15 @@ def main() -> int:
         print("ERROR: Faltan FB_APP_ID, FB_APP_SECRET o FB_PAGE_ID en .env", file=sys.stderr)
         return 1
 
-    print("Pega tu Short-Lived User Token del Graph API Explorer:")
+    print("Copia el token en el Graph API Explorer (botón de copiar) y presiona Enter aquí.")
+    print("(O pégalo y presiona Enter; no se ve mientras lo pegas.)")
     short_token = getpass.getpass("Token: ").strip()
-    if not short_token:
-        print("Token vacío, saliendo.", file=sys.stderr)
+    if not short_token:  # nothing typed: read it straight from the macOS clipboard
+        short_token = subprocess.run(["pbpaste"], capture_output=True, text=True).stdout.strip()
+    short_token = short_token.strip().strip("'\"").replace("\n", "").replace(" ", "")
+    if not short_token.startswith("EAA") or len(short_token) < 100:
+        print(f"ERROR: eso no parece un token de Meta (empieza por '{short_token[:3]}', {len(short_token)} caracteres;", file=sys.stderr)
+        print("  uno válido empieza por 'EAA' y tiene más de 100). Cópialo otra vez con el botón de copiar.", file=sys.stderr)
         return 1
 
     # Step 1: exchange for long-lived user token (60 days)
