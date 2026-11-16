@@ -59,12 +59,12 @@ jobs:
       POST_MODE: "review"
       MIN_DISCOUNT_PCT: "35"
       MIN_SAVINGS_COP: "20000"
-      # Publicaciones por hora (Bogotá), unas 63 al día. Volumen de Club de los gratis a la mitad, pero cargado
-      # al día: allá 9-17h promedió 10,2 reacciones por post y 17-24h solo 1,8 (63 de 80 posts sin ninguna).
-      # 8h: 3 · 9-16h: 34 · 17-22h: 26. Cada ejecución (cada 30 min) hace su mitad de la hora, espaciadas.
-      POSTS_PER_HOUR: "8:3,9:5,10:4,11:4,12:5,13:4,14:4,15:4,16:4,17:5,18:5,19:5,20:4,21:4,22:3"
-      # Dato útil o noticia (alternados) como primera publicación de estas horas; allá fueron lo más comentado
-      CONTENT_HOURS: "9,12,17"
+      # Publicaciones por hora (Bogotá): ~25 al día, prueba del 16 al 22 de nov. Con 63 al día las vistas por post
+      # cayeron de 4,2 a 1,4 sin sumar alcance. Cargado a 9-12 h (9) y 20-23 h (6), las franjas con más vistas.
+      POSTS_PER_HOUR: "8:1,9:3,10:3,11:3,12:2,13:1,14:1,15:1,16:1,17:1,18:1,19:1,20:2,21:2,22:2"
+      # Dato útil como primera publicación de estas horas (5 al día: ~3 veces las vistas de una oferta); noticia
+      # solo si no hay un dato listo (cada dato descansa 7 días)
+      CONTENT_HOURS: "9,11,14,17,20"
       # "¿Descuento real?": historial de 30 días de una oferta con nuestros propios datos y su veredicto (real,
       # buen precio o "antes" inflado). Reemplaza una oferta de esa hora; si ninguna tiene historial suficiente,
       # sale una oferta normal. Contenido original, el que Meta recomienda.
@@ -79,6 +79,8 @@ jobs:
       INSTAGRAM_PHOTOS_PER_HOUR: "1"
       # Tope de seguridad diario (la suma de arriba es 63; con EVENT_BOOST, ~82)
       MAX_POSTS_PER_DAY: "90"
+      # Tope diario por tienda (fotos y reels): Falabella y Tennis llenaban la rotación con las vistas más bajas
+      STORE_MAX_PER_DAY: "falabella:6,tennis:4"
       # Black Friday (27-29 nov) y Cyber Monday (30 nov): 30 % más publicaciones por hora, etiqueta y hashtags
       # del evento. Del 20 al 26 de nov, cuenta regresiva a las 8 h (app/events.py).
       EVENT_BOOST: "1.3"

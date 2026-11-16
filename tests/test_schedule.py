@@ -139,5 +139,21 @@ class HourlyPlanTests(unittest.TestCase):
         self.assertEqual(db.posts_this_hour(), 2)  # promo + carousel; last January's post doesn't count
 
 
+class StoreCapTests(unittest.TestCase):
+    def test_stores_stop_at_their_daily_cap(self):
+        with tempfile.TemporaryDirectory() as d:
+            s = replace(settings_for(d), store_max_per_day=(("falabella", 6), ("tennis", 4)), amazon_max_per_day=8)
+        counts = {"falabella": 6, "tennis": 3, "amazon": 8, "alkosto": 20}
+        db = type("Db", (), {"posts_today_from": lambda self, src: counts.get(src, 0)})()
+        self.assertEqual(main.capped_sources(s, db), frozenset({"falabella", "amazon"}))
+
+    def test_store_caps_parse_from_env(self):
+        import os
+        from unittest.mock import patch
+        from app.config import Settings
+        with patch.dict(os.environ, {"STORE_MAX_PER_DAY": "falabella:6, tennis:4"}):
+            self.assertEqual(Settings.from_env().store_max_per_day, (("falabella", 6), ("tennis", 4)))
+
+
 if __name__ == "__main__":
     unittest.main()

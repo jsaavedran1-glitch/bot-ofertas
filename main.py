@@ -57,11 +57,14 @@ PUBLISH_PATTERN = (
 REEL_SOURCES = {"amazon", "exito", "alkosto", "ktronix", "falabella", "nike", "tennis", "adidas"}
 
 
+TIP_COOLDOWN_DAYS = 7  # a tip can come back after a week (5 a day: the bank needs 35+ tips)
+
+
 def capped_sources(settings: Settings, database: Database) -> frozenset[str]:
-    """Stores that already hit their daily cap: Amazon/DealNews after AMAZON_MAX_PER_DAY posts."""
-    if database.posts_today_from("amazon") >= settings.amazon_max_per_day:
-        return frozenset({"amazon"})
-    return frozenset()
+    """Stores that already hit their daily cap: Amazon/DealNews after AMAZON_MAX_PER_DAY posts, and any store in
+    STORE_MAX_PER_DAY (e.g. Falabella and Tennis, which otherwise fill the rotation when others run dry)."""
+    caps = {**dict(settings.store_max_per_day), "amazon": settings.amazon_max_per_day}
+    return frozenset(src for src, cap in caps.items() if database.posts_today_from(src) >= cap)
 
 
 def publish_queues(database: Database, as_reel: bool = False, cooldown_days: int = 7,
@@ -142,12 +145,12 @@ def publish_content(settings: Settings, database: Database, pipeline: OfferPipel
                     feeds: NewsFeeds | None = None, tips=None, publisher: FacebookPublisher | None = None) -> bool:
     """A "Dato útil" or a "Noticia", alternating (each falls back to the other). True when one went out."""
     history = database.content_history()
-    last = [k for k, _, _ in history if k in {"dato", "noticia"}]
-    order = ("noticia", "dato") if last and last[-1] == "dato" else ("dato", "noticia")
+    order = ("dato", "noticia")  # tips get ~3x the views of news: news only when no tip is ready
     post = None
     for kind in order:
         if kind == "dato":
-            post = next_tip(load_tips() if tips is None else tips, {key: when for k, key, when in history if k == "dato"})
+            post = next_tip(load_tips() if tips is None else tips, {key: when for k, key, when in history if k == "dato"},
+                            cooldown_days=TIP_COOLDOWN_DAYS)
         elif pipeline.ai is not None:  # news need Claude to choose and summarize
             items = (feeds or NewsFeeds()).recent({key for k, key, _ in history if k == "noticia"})
             picked = pipeline.ai.pick_news(items)

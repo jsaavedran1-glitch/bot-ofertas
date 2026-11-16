@@ -87,6 +87,7 @@ class Settings:
     anthropic_api_key: str = ""
     ai_enabled: bool = True
     ai_review: bool = True
+    store_max_per_day: tuple[tuple[str, int], ...] = ()  # STORE_MAX_PER_DAY "falabella:6,tennis:4"
     amazon_max_per_day: int = 8  # AMAZON_MAX_PER_DAY: Amazon/DealNews posts (photos and reels) per Bogotá day
 
     @classmethod
@@ -155,5 +156,7 @@ class Settings:
             anthropic_api_key=os.getenv("ANTHROPIC_API_KEY", "").strip(),
             ai_review=_as_bool(os.getenv("AI_REVIEW"), True),
             ai_enabled=_as_bool(os.getenv("AI_ENABLED"), True),
+            store_max_per_day=tuple((k.strip(), int(v)) for k, _, v in (
+                part.partition(":") for part in os.getenv("STORE_MAX_PER_DAY", "").split(",") if ":" in part)),
             amazon_max_per_day=int(os.getenv("AMAZON_MAX_PER_DAY", "8")),
         )
